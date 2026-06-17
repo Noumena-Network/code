@@ -11,6 +11,9 @@ build-output/
 coverage/
 *.log
 
+# Bun standalone-compile intermediates
+*.bun-build
+
 # Native build outputs
 native/**/target/
 native/**/dist/

@@ -290,24 +290,49 @@ const privatePackageShimPlugin = {
   },
 };
 
-const runtimeNativeShimPlugin = {
-  name: 'runtime-native-shims',
-  setup(build) {
-    build.onResolve({ filter: /^audio-capture-napi$/ }, () => ({
-      path: path.join(rootDir, 'src', 'shims', 'audioCaptureNapi.ts'),
-    }));
-
-    build.onResolve({ filter: /^\.\/sharp$/ }, args => {
-      const normalizedImporter = args.importer.replace(/\\/g, '/');
-      if (normalizedImporter.includes('/node_modules/sharp/lib/')) {
-        return {
-          path: path.join(rootDir, 'src', 'shims', 'sharp', 'sharpBinding.cjs'),
-        };
-      }
-      return null;
-    });
-  },
+// Maps a compile-target slug (the `bun-` prefix stripped) to the sharp binding
+// shim that embeds that platform's native addon + libvips. Each shim only
+// statically imports the assets for its own platform, because Bun only installs
+// the `@img/sharp-*` optional dependencies matching the build host's os/cpu —
+// importing another platform's assets would fail to resolve at bundle time.
+const SHARP_BINDING_BY_TARGET = {
+  'linux-x64': 'sharpBinding.cjs',
+  'linux-x64-musl': 'sharpBinding.cjs',
+  'darwin-arm64': 'sharpBinding.darwin-arm64.cjs',
+  'darwin-x64': 'sharpBinding.darwin-x64.cjs',
 };
+
+function resolveSharpBindingPath(sharpTargetSlug) {
+  const bindingFile = SHARP_BINDING_BY_TARGET[sharpTargetSlug];
+  if (!bindingFile) {
+    throw new Error(
+      `No bundled sharp native runtime for target "${sharpTargetSlug}". ` +
+        `Supported targets: ${Object.keys(SHARP_BINDING_BY_TARGET).join(', ')}.`,
+    );
+  }
+  return path.join(rootDir, 'src', 'shims', 'sharp', bindingFile);
+}
+
+function createRuntimeNativeShimPlugin(sharpTargetSlug) {
+  return {
+    name: 'runtime-native-shims',
+    setup(build) {
+      build.onResolve({ filter: /^audio-capture-napi$/ }, () => ({
+        path: path.join(rootDir, 'src', 'shims', 'audioCaptureNapi.ts'),
+      }));
+
+      build.onResolve({ filter: /^\.\/sharp$/ }, args => {
+        const normalizedImporter = args.importer.replace(/\\/g, '/');
+        if (normalizedImporter.includes('/node_modules/sharp/lib/')) {
+          return {
+            path: resolveSharpBindingPath(sharpTargetSlug),
+          };
+        }
+        return null;
+      });
+    },
+  };
+}
 
 const inlineSourceMapStripPlugin = {
   name: 'inline-source-map-strip',
@@ -343,6 +368,31 @@ const inlineSourceMapStripPlugin = {
     });
   },
 };
+
+function isMuslBuildHost() {
+  const report = process.report?.getReport?.();
+  const glibcVersionRuntime = report?.header?.glibcVersionRuntime;
+  return process.platform === 'linux' && !glibcVersionRuntime;
+}
+
+// Derives the sharp asset target slug from a requested Bun compile target
+// (e.g. `bun-darwin-arm64` -> `darwin-arm64`). When no target is requested
+// (source builds, local standalone builds), fall back to the build host so the
+// embedded native assets always match the machine the bundle will run on.
+function resolveSharpTargetSlug(requestedTarget) {
+  if (requestedTarget) {
+    return requestedTarget.replace(/^bun-/, '');
+  }
+  const osPart =
+    process.platform === 'win32'
+      ? 'windows'
+      : process.platform === 'darwin'
+        ? 'darwin'
+        : 'linux';
+  const archPart = process.arch === 'arm64' ? 'arm64' : 'x64';
+  const libcPart = osPart === 'linux' && isMuslBuildHost() ? '-musl' : '';
+  return `${osPart}-${archPart}${libcPart}`;
+}
 
 function getBuildMode(requestedUserType) {
   const buildMode =
@@ -417,6 +467,7 @@ export async function resolveBuildSettings(options = {}) {
     userType,
     buildFeatures,
     hasChromeMcpPackage,
+    sharpTargetSlug: resolveSharpTargetSlug(options.target),
     define: {
       'process.env.USER_TYPE': JSON.stringify(userType),
       'process.env.NCODE_BUILD_MODE': JSON.stringify(buildMode),
@@ -438,7 +489,7 @@ export async function resolveBuildSettings(options = {}) {
 function createBuildPlugins(settings) {
   const plugins = [
     srcAliasPlugin,
-    runtimeNativeShimPlugin,
+    createRuntimeNativeShimPlugin(settings.sharpTargetSlug),
     inlineSourceMapStripPlugin,
   ];
   if (!settings.hasChromeMcpPackage) {
