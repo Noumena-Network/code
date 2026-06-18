@@ -226,6 +226,13 @@ export function parseUserSpecifiedModel(
     switch (modelString) {
       case 'best':
         return getBestModel()
+      case 'sonnet':
+      case 'opus':
+      case 'haiku':
+      case 'opusplan':
+        // Legacy Anthropic aliases are remapped to the managed Kimi model for
+        // one release cycle while users migrate persisted configs.
+        return getDefaultNoumenaModel() + (has1mTag ? '[1m]' : '')
       default:
         // Fall through to Noumena-managed model resolution.
     }

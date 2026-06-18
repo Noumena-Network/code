@@ -32,9 +32,6 @@ const envKeys = [
   'CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR',
   'CLAUDE_CODE_SESSION_ACCESS_TOKEN',
   'CLAUDE_SESSION_INGRESS_TOKEN_FILE',
-  'CLAUDE_CODE_USE_BEDROCK',
-  'CLAUDE_CODE_USE_VERTEX',
-  'CLAUDE_CODE_USE_FOUNDRY',
   'CLAUDE_CODE_ENTRYPOINT',
   'USER_TYPE',
   'NCODE_SIMPLE',
@@ -84,9 +81,6 @@ function setStableTestRuntime(): void {
   delete process.env.CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR
   delete process.env.CLAUDE_CODE_SESSION_ACCESS_TOKEN
   delete process.env.CLAUDE_SESSION_INGRESS_TOKEN_FILE
-  delete process.env.CLAUDE_CODE_USE_BEDROCK
-  delete process.env.CLAUDE_CODE_USE_VERTEX
-  delete process.env.CLAUDE_CODE_USE_FOUNDRY
   delete process.env.NCODE_SIMPLE
   delete process.env.CLAUDE_CODE_SIMPLE
 }
@@ -235,15 +229,6 @@ describe('LeaseManager', () => {
     })
   })
 
-  it('returns no local lease for third-party provider sessions', async () => {
-    process.env.CLAUDE_CODE_USE_BEDROCK = '1'
-
-    const lease = await getLeaseManager().resolveLease({ nowMs: Date.now() })
-
-    expect(lease).toBeNull()
-    expect(getLeaseManager().getCachedLease()).toBeNull()
-  })
-
   it('builds a healthy continuity status view for managed auth sessions with a usable lease', async () => {
     const nowMs = Date.now()
     saveOAuthTokensIfNeeded({
@@ -278,23 +263,6 @@ describe('LeaseManager', () => {
       continuityState: 'healthy',
       leaseRenewalState: 'healthy',
       renewable: true,
-      recoveryAction: 'none',
-    })
-  })
-
-  it('reports degraded continuity when a principal session exists but no runtime lease is available', async () => {
-    process.env.CLAUDE_CODE_USE_BEDROCK = '1'
-
-    const status = await getLeaseManager().getStatusView({ nowMs: Date.now() })
-
-    expect(status).toMatchObject({
-      principalKind: 'third_party_provider',
-      principalSource: 'third_party_provider',
-      continuityState: 'degraded',
-      leaseRenewalState: 'not_applicable',
-      leaseKind: null,
-      leaseState: null,
-      renewable: false,
       recoveryAction: 'none',
     })
   })

@@ -44,9 +44,6 @@ const envKeys = [
   'NCODE_OAUTH_TOKEN_FILE_DESCRIPTOR',
   'CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR',
   'CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR',
-  'CLAUDE_CODE_USE_BEDROCK',
-  'CLAUDE_CODE_USE_VERTEX',
-  'CLAUDE_CODE_USE_FOUNDRY',
   'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
   'CLAUDE_CODE_ENTRYPOINT',
   'USER_TYPE',
@@ -82,9 +79,6 @@ function setStableTestRuntime(): void {
   delete process.env.NCODE_OAUTH_TOKEN_FILE_DESCRIPTOR
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR
   delete process.env.CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR
-  delete process.env.CLAUDE_CODE_USE_BEDROCK
-  delete process.env.CLAUDE_CODE_USE_VERTEX
-  delete process.env.CLAUDE_CODE_USE_FOUNDRY
   delete process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
 
   ;(globalThis as { MACRO?: Record<string, unknown> }).MACRO = {
@@ -244,7 +238,6 @@ describe('fetchBootstrapData', () => {
   })
 
   it('skips the fetch outside first-party traffic conditions', async () => {
-    process.env.CLAUDE_CODE_USE_VERTEX = '1'
 
     await fetchBootstrapData()
 

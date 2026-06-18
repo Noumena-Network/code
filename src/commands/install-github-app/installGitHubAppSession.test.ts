@@ -18,9 +18,6 @@ const envKeys = [
   'CLAUDE_CONFIG_DIR',
   'NOUMENA_API_KEY',
   'ANTHROPIC_API_KEY',
-  'CLAUDE_CODE_USE_BEDROCK',
-  'CLAUDE_CODE_USE_VERTEX',
-  'CLAUDE_CODE_USE_FOUNDRY',
   'CLAUDE_CODE_ENTRYPOINT',
   'USER_TYPE',
   'NOUMENA_PLATFORM_BASE_URL',
@@ -60,9 +57,6 @@ function setStableTestRuntime(): void {
   process.env.USER_TYPE = 'test'
   delete process.env.NOUMENA_API_KEY
   delete process.env.ANTHROPIC_API_KEY
-  delete process.env.CLAUDE_CODE_USE_BEDROCK
-  delete process.env.CLAUDE_CODE_USE_VERTEX
-  delete process.env.CLAUDE_CODE_USE_FOUNDRY
 }
 
 beforeEach(async () => {

@@ -12,7 +12,6 @@ const ORIGINAL_ENV = {
   NOUMENA_BASE_URL: process.env.NOUMENA_BASE_URL,
   NOUMENA_MODEL: process.env.NOUMENA_MODEL,
   ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL,
-  CLAUDE_CODE_USE_VERTEX: process.env.CLAUDE_CODE_USE_VERTEX,
   CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST:
     process.env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST,
 }
@@ -65,13 +64,11 @@ describe('getRemoteSessionEnvironmentVariables', () => {
   it('inherits managed routing env vars from the current process', () => {
     process.env.NOUMENA_BASE_URL = 'http://internal-gateway.invalid'
     process.env.NOUMENA_MODEL = '/data/models/hf/moonshotai__Kimi-K2.7-Code'
-    process.env.CLAUDE_CODE_USE_VERTEX = '1'
     process.env.UNRELATED_REMOTE_TEST_ENV = 'ignored'
 
     expect(getRemoteSessionEnvironmentVariables()).toEqual({
       NOUMENA_BASE_URL: 'http://internal-gateway.invalid',
       NOUMENA_MODEL: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
-      CLAUDE_CODE_USE_VERTEX: '1',
     })
   })
 

@@ -48,12 +48,6 @@ import { canUserConfigureAdvisor, getInitialAdvisorSetting, isAdvisorEnabled, is
 import { isAgentSwarmsEnabled } from './utils/agentSwarmsEnabled.js';
 import { count, uniq } from './utils/array.js';
 import { installAsciicastRecorder } from './utils/asciicast.js';
-import {
-  prefetchCurrentAwsCredentialsAndBedrockInfoIfSafe,
-  prefetchCurrentGcpCredentialsIfSafe,
-  shouldPrefetchAwsCredentialsAtStartup,
-  shouldPrefetchGcpCredentialsAtStartup,
-} from './utils/cloudCredentialSession.js';
 import { getCurrentCommandAvailabilitySession } from './utils/commandAvailability.js';
 import { checkHasTrustDialogAccepted, getGlobalConfig, getRemoteControlAtStartup, isAutoUpdaterDisabled, saveGlobalConfig } from './utils/config.js';
 import { seedEarlyInput, stopCapturingEarlyInput } from './utils/earlyInput.js';
@@ -136,6 +130,7 @@ import { getCreatedRemoteSessionOutputText } from './utils/remoteSessionCliOutpu
 import { getModelDeprecationWarning } from './utils/model/deprecation.js';
 import { getDefaultMainLoopModel, getUserSpecifiedModelSetting, normalizeModelStringForAPI, parseUserSpecifiedModel } from './utils/model/model.js';
 import { ensureModelStringsInitialized } from './utils/model/modelStrings.js';
+import { warnIfLegacyProviderEnvVarsPresent } from './utils/model/providers.js';
 import { PERMISSION_MODES } from './utils/permissions/PermissionMode.js';
 import { checkAndDisableBypassPermissions, getAutoModeEnabledStateIfCached, initializeToolPermissionContext, initialPermissionModeFromCLI, isDefaultPermissionModeAuto, parseToolListFromCLI, removeDangerousPermissions, stripDangerousPermissionsForAutoMode, verifyAutoModeGateAccess } from './utils/permissions/permissionSetup.js';
 import { cleanupOrphanedPluginVersionsInBackground } from './utils/plugins/cacheUtils.js';
@@ -461,18 +456,6 @@ export function startDeferredPrefetches(): void {
   void getUserContext();
   prefetchSystemContextIfSafe();
   void getRelevantTips();
-  if (shouldPrefetchAwsCredentialsAtStartup({
-    useBedrock: isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK),
-    skipBedrockAuth: isEnvTruthy(process.env.CLAUDE_CODE_SKIP_BEDROCK_AUTH),
-  })) {
-    void prefetchCurrentAwsCredentialsAndBedrockInfoIfSafe();
-  }
-  if (shouldPrefetchGcpCredentialsAtStartup({
-    useVertex: isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX),
-    skipVertexAuth: isEnvTruthy(process.env.CLAUDE_CODE_SKIP_VERTEX_AUTH),
-  })) {
-    void prefetchCurrentGcpCredentialsIfSafe();
-  }
   void countFilesRoundedRg(getCwd(), AbortSignal.timeout(3000), []);
 
   // Analytics and feature flag initialization
@@ -944,6 +927,7 @@ async function getInputPrompt(prompt: string, inputFormat: 'text' | 'stream-json
   return prompt;
 }
 async function run(): Promise<CommanderCommand> {
+  warnIfLegacyProviderEnvVarsPresent();
   profileCheckpoint('run_function_start');
 
   // Create help config that sorts options by long option name.

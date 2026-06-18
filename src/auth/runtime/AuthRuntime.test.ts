@@ -31,9 +31,6 @@ const envKeys = [
   'NCODE_REMOTE_RUNTIME_PROVIDER_MODE',
   'NCODE_REMOTE_RUNTIME_TOKEN_TRANSPORT',
   'CLAUDE_SESSION_INGRESS_TOKEN_FILE',
-  'CLAUDE_CODE_USE_BEDROCK',
-  'CLAUDE_CODE_USE_VERTEX',
-  'CLAUDE_CODE_USE_FOUNDRY',
   'CLAUDE_CODE_ENTRYPOINT',
   'USER_TYPE',
   'NCODE_SIMPLE',
@@ -85,9 +82,6 @@ function setStableTestRuntime(): void {
   delete process.env.NCODE_REMOTE_RUNTIME_PROVIDER_MODE
   delete process.env.NCODE_REMOTE_RUNTIME_TOKEN_TRANSPORT
   delete process.env.CLAUDE_SESSION_INGRESS_TOKEN_FILE
-  delete process.env.CLAUDE_CODE_USE_BEDROCK
-  delete process.env.CLAUDE_CODE_USE_VERTEX
-  delete process.env.CLAUDE_CODE_USE_FOUNDRY
   delete process.env.NCODE_SIMPLE
   delete process.env.CLAUDE_CODE_SIMPLE
 }
@@ -523,43 +517,6 @@ describe('AuthRuntime', () => {
       accessToken: 'session-env-token',
       hasUsableToken: true,
       scopes: ['user:inference'],
-    })
-  })
-
-  it('does not surface stale first-party account metadata for third-party provider sessions', async () => {
-    process.env.CLAUDE_CODE_USE_BEDROCK = '1'
-    saveGlobalConfig(current => ({
-      ...current,
-      oauthAccount: {
-        accountUuid: 'acct-stale',
-        emailAddress: 'stale@noumena.test',
-        organizationUuid: 'org-stale',
-        organizationName: 'Stale Org',
-      },
-    }))
-
-    const session = getAuthRuntime().getCurrentSession()
-    const status = await getAuthRuntime().getStatusView()
-
-    expect(session).toMatchObject({
-      principalKind: 'third_party_provider',
-      principalSource: 'third_party_provider',
-      providerPlan: {
-        mode: 'third_party_provider',
-      },
-      identity: {
-        email: null,
-        accountUuid: null,
-        organizationUuid: null,
-        organizationName: null,
-      },
-    })
-    expect(status).toMatchObject({
-      loggedIn: true,
-      authMethod: 'third_party',
-      email: null,
-      orgId: null,
-      orgName: null,
     })
   })
 })

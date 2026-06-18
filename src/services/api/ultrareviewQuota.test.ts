@@ -65,9 +65,6 @@ const envKeys = [
   'CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR',
   'CLAUDE_SESSION_INGRESS_TOKEN_FILE',
   'CLAUDE_CODE_ORGANIZATION_UUID',
-  'CLAUDE_CODE_USE_BEDROCK',
-  'CLAUDE_CODE_USE_VERTEX',
-  'CLAUDE_CODE_USE_FOUNDRY',
   'CLAUDE_CODE_ENTRYPOINT',
 ] as const
 
@@ -107,9 +104,6 @@ function setStableTestRuntime(): void {
   delete process.env.CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR
   delete process.env.CLAUDE_SESSION_INGRESS_TOKEN_FILE
   delete process.env.CLAUDE_CODE_ORGANIZATION_UUID
-  delete process.env.CLAUDE_CODE_USE_BEDROCK
-  delete process.env.CLAUDE_CODE_USE_VERTEX
-  delete process.env.CLAUDE_CODE_USE_FOUNDRY
   delete process.env.CLAUDE_CODE_ENTRYPOINT
 
   ;(globalThis as { MACRO?: Record<string, unknown> }).MACRO = {

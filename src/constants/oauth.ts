@@ -88,7 +88,7 @@ export function getOauthTokenUrl(): string {
 
 /**
  * Default first-party inference host used by the legacy compatibility API
- * contract when no explicit `NOUMENA_BASE_URL` / `ANTHROPIC_BASE_URL` override
+ * contract when no explicit NOUMENA_BASE_URL override is present.
  * is present.
  */
 export function getDefaultFirstPartyInferenceBaseUrl(): string {
@@ -216,9 +216,9 @@ type OauthConfig = {
 
 // Production OAuth configuration.
 //
-// Public builds default to Noumena-owned hosts. Anthropic BYOK is still
-// supported via the ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL overrides; it does
-// not require Anthropic-hosted OAuth endpoints as the default.
+// Public builds default to Noumena-owned hosts. Anthropic BYOK remains
+// supported via the ANTHROPIC_API_KEY override; it does not require
+// Anthropic-hosted OAuth endpoints as the default.
 const PROD_OAUTH_CONFIG = {
   BASE_API_URL: 'https://api.noumena.com',
   CONSOLE_AUTHORIZE_URL: 'https://code.noumena.com/oauth/authorize',

@@ -18,9 +18,6 @@ type FetchOverride = NonNullable<
 const envKeys = [
   'NOUMENA_BASE_URL',
   'ANTHROPIC_BASE_URL',
-  'CLAUDE_CODE_USE_BEDROCK',
-  'CLAUDE_CODE_USE_VERTEX',
-  'CLAUDE_CODE_USE_FOUNDRY',
   'ANTHROPIC_API_KEY',
   'NOUMENA_API_KEY',
   'ANTHROPIC_AUTH_TOKEN',
@@ -55,9 +52,6 @@ function resetEnv() {
 function setStableTestRuntime() {
   delete process.env.NOUMENA_BASE_URL
   delete process.env.ANTHROPIC_BASE_URL
-  delete process.env.CLAUDE_CODE_USE_BEDROCK
-  delete process.env.CLAUDE_CODE_USE_VERTEX
-  delete process.env.CLAUDE_CODE_USE_FOUNDRY
   delete process.env.NOUMENA_API_KEY
   delete process.env.CI
 

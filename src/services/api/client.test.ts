@@ -22,9 +22,6 @@ const envKeys = [
   'CLAUDE_CODE_ORGANIZATION_UUID',
   'NOUMENA_BASE_URL',
   'ANTHROPIC_BASE_URL',
-  'CLAUDE_CODE_USE_BEDROCK',
-  'CLAUDE_CODE_USE_VERTEX',
-  'CLAUDE_CODE_USE_FOUNDRY',
   'NOUMENA_API_KEY',
   'ANTHROPIC_API_KEY',
   'CLAUDE_CODE_OAUTH_TOKEN',
@@ -63,9 +60,6 @@ function setStableTestRuntime() {
   process.env.NOUMENA_API_KEY = 'baseline-api-key'
   delete process.env.NOUMENA_BASE_URL
   delete process.env.ANTHROPIC_BASE_URL
-  delete process.env.CLAUDE_CODE_USE_BEDROCK
-  delete process.env.CLAUDE_CODE_USE_VERTEX
-  delete process.env.CLAUDE_CODE_USE_FOUNDRY
   delete process.env.ANTHROPIC_API_KEY
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN
   delete process.env.CLAUDE_CODE_SESSION_ACCESS_TOKEN
@@ -253,23 +247,6 @@ describe('getWrappedClientFetch', () => {
     )
 
     await wrappedFetch('https://gateway.example.test/v1/messages', {})
-
-    expect(capturedHeaders?.has(CLIENT_REQUEST_ID_HEADER)).toBe(false)
-  })
-
-  it('omits the client request id for third-party providers', async () => {
-    process.env.CLAUDE_CODE_USE_VERTEX = '1'
-
-    let capturedHeaders: Headers | null = null
-    const wrappedFetch = getWrappedClientFetch(
-      async (_input, init) => {
-        capturedHeaders = new Headers(init?.headers)
-        return new Response('ok')
-      },
-      'unit-test',
-    )
-
-    await wrappedFetch('https://vertex.example.test/v1/messages', {})
 
     expect(capturedHeaders?.has(CLIENT_REQUEST_ID_HEADER)).toBe(false)
   })

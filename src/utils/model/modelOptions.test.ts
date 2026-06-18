@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import {
+  KIMI_2_7_CODER_MODEL,
+} from './ncodeModels.js'
+import { parseUserSpecifiedModel } from './model.js'
+import {
   getDefaultOptionForUser,
   getModelOptions,
   modelOptionsReferToSameModel,
@@ -37,5 +41,15 @@ describe('modelOptions', () => {
     expect(
       modelOptionsReferToSameModel('kimi-2.7-coder', 'claude-3-opus-4-5'),
     ).toBe(false)
+  })
+
+  it('maps legacy Anthropic aliases to the managed Kimi model', () => {
+    expect(parseUserSpecifiedModel('sonnet')).toBe(KIMI_2_7_CODER_MODEL)
+    expect(parseUserSpecifiedModel('opus')).toBe(KIMI_2_7_CODER_MODEL)
+    expect(parseUserSpecifiedModel('haiku')).toBe(KIMI_2_7_CODER_MODEL)
+    expect(parseUserSpecifiedModel('opusplan')).toBe(KIMI_2_7_CODER_MODEL)
+    expect(parseUserSpecifiedModel('sonnet[1m]')).toBe(
+      `${KIMI_2_7_CODER_MODEL}[1m]`,
+    )
   })
 })

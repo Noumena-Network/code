@@ -82,7 +82,7 @@ export function resolveNCodeManagedModel(
   return NCODE_MANAGED_MODEL_PROFILES.find(profile => {
     if (normalized === profile.model.toLowerCase()) return true
     if ((profile.aliases as readonly string[]).includes(normalized)) return true
-    return normalized.includes(profile.model.toLowerCase())
+    return false
   })
 }
 
