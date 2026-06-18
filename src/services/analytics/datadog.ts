@@ -5,9 +5,21 @@ import { getOrCreateUserID } from '../../utils/config.js'
 import { logError } from '../../utils/log.js'
 import { getCanonicalName } from '../../utils/model/model.js'
 import { getAPIProvider } from '../../utils/model/providers.js'
-import { MODEL_COSTS } from '../../utils/modelCost.js'
+import {
+  KIMI_2_7_CODER_MODEL,
+  NCODE_MANAGED_MODEL_ALIASES,
+  NCODE_MANAGED_MODEL_PROFILES,
+} from '../../utils/model/ncodeModels.js'
 import { isAnalyticsDisabled } from './config.js'
 import { getEventMetadata } from './metadata.js'
+
+const KNOWN_DATADOG_MODEL_NAMES = new Set<string>([
+  ...NCODE_MANAGED_MODEL_ALIASES,
+  KIMI_2_7_CODER_MODEL,
+  ...NCODE_MANAGED_MODEL_PROFILES.map(p => p.label),
+  ...NCODE_MANAGED_MODEL_PROFILES.map(p => p.model),
+  ...NCODE_MANAGED_MODEL_PROFILES.map(p => p.primaryAlias),
+])
 
 const DEFAULT_FLUSH_INTERVAL_MS = 15000
 const MAX_BATCH_SIZE = 100
@@ -223,7 +235,9 @@ export async function trackDatadogEvent(
     // Normalize model names for cardinality reduction (external users only)
     if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant') && typeof allData.model === 'string') {
       const shortName = getCanonicalName(allData.model.replace(/\[1m]$/i, ''))
-      allData.model = shortName in MODEL_COSTS ? shortName : 'other'
+      allData.model = KNOWN_DATADOG_MODEL_NAMES.has(shortName)
+        ? shortName
+        : 'other'
     }
 
     // Truncate dev version to base + date (remove timestamp and sha for cardinality reduction)

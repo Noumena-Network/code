@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import {
-  getAnthropicBaseUrl,
   getFirstPartyBaseUrlOverride,
   getNoumenaBaseUrl,
   isFirstPartyNoumenaBaseUrl,
@@ -16,12 +15,10 @@ beforeEach(resetEnv)
 afterEach(resetEnv)
 
 describe('providers', () => {
-  it('prefers NOUMENA_BASE_URL over legacy ANTHROPIC_BASE_URL', () => {
+  it('returns the Noumena base URL override', () => {
     process.env.NOUMENA_BASE_URL = 'https://api.noumena.com'
-    process.env.ANTHROPIC_BASE_URL = 'https://api.anthropic.com'
 
     expect(getNoumenaBaseUrl()).toBe('https://api.noumena.com')
-    expect(getAnthropicBaseUrl()).toBe('https://api.anthropic.com')
     expect(getFirstPartyBaseUrlOverride()).toBe('https://api.noumena.com')
   })
 
@@ -30,16 +27,12 @@ describe('providers', () => {
     expect(isFirstPartyNoumenaBaseUrl()).toBe(true)
   })
 
-  it('accepts official Noumena and legacy Anthropic hosts as first-party', () => {
+  it('accepts official Noumena hosts as first-party', () => {
     process.env.NOUMENA_BASE_URL = 'https://api.noumena.com'
-    expect(isFirstPartyNoumenaBaseUrl()).toBe(true)
-
-    delete process.env.NOUMENA_BASE_URL
-    process.env.ANTHROPIC_BASE_URL = 'https://api.anthropic.com'
     expect(isFirstPartyNoumenaBaseUrl()).toBe(true)
   })
 
-  it('rejects non-first-party overrides', () => {
+  it('rejects non-Noumena overrides', () => {
     process.env.NOUMENA_BASE_URL = 'http://127.0.0.1:18000'
     expect(isFirstPartyNoumenaBaseUrl()).toBe(false)
 
@@ -52,15 +45,5 @@ describe('providers', () => {
     process.env.NOUMENA_BASE_URL =
       'https://internal-override.invalid'
     expect(isFirstPartyNoumenaBaseUrl()).toBe(false)
-
-    delete process.env.NOUMENA_BASE_URL
-    process.env.ANTHROPIC_BASE_URL = 'https://corp-proxy.example.com'
-    expect(isFirstPartyNoumenaBaseUrl()).toBe(false)
-  })
-
-  it('preserves Anthropic staging for ant users', () => {
-    process.env.USER_TYPE = 'ant'
-    process.env.ANTHROPIC_BASE_URL = 'https://api-staging.anthropic.com'
-    expect(isFirstPartyNoumenaBaseUrl()).toBe(true)
   })
 })

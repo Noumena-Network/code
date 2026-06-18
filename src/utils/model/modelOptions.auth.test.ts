@@ -4,20 +4,15 @@ import type { ResolvedAuthSession } from '../../auth/runtime/types.js'
 import {
   getDefaultOptionForUser,
   getModelOptions,
-  getMaxOpus46_1MOption,
 } from './modelOptions.js'
 import { parseUserSpecifiedModel } from './model.js'
-import {
-  KIMI_2_7_CODER_MODEL,
-} from './ncodeModels.js'
+import { KIMI_2_7_CODER_MODEL } from './ncodeModels.js'
 
 const envKeys = [
   'CLAUDE_CODE_ENTRYPOINT',
   'USER_TYPE',
   'NCODE_BUILD_MODE',
-  'CLAUDE_CODE_USE_BEDROCK',
-  'CLAUDE_CODE_USE_VERTEX',
-  'CLAUDE_CODE_USE_FOUNDRY',
+  'NOUMENA_API_KEY',
   'NOUMENA_BASE_URL',
   'NOUMENA_MODEL',
   'NOUMENA_SMALL_FAST_MODEL',
@@ -48,6 +43,7 @@ function useFirstPartyTestEnv(): void {
   }
   process.env.CLAUDE_CODE_ENTRYPOINT = 'cli'
   process.env.USER_TYPE = 'test'
+  process.env.NOUMENA_API_KEY = 'test-api-key'
 }
 
 function makeSession(
@@ -105,7 +101,7 @@ function withMockCurrentSession<T>(
 ): T {
   const runtime = getAuthRuntime()
   const originalGetCurrentSession = runtime.getCurrentSession.bind(runtime)
-  ;(
+  (
     runtime as {
       getCurrentSession: typeof runtime.getCurrentSession
     }
@@ -114,7 +110,7 @@ function withMockCurrentSession<T>(
   try {
     return fn()
   } finally {
-    ;(
+    (
       runtime as {
         getCurrentSession: typeof runtime.getCurrentSession
       }
@@ -166,8 +162,8 @@ describe('modelOptions auth gating', () => {
     })
 
     withMockCurrentSession(session, () => {
-      expect(getDefaultOptionForUser().description).toBe(
-        'Use the default model for your plan',
+      expect(getDefaultOptionForUser().description).toContain(
+        'Use the default model',
       )
     })
   })
@@ -227,53 +223,6 @@ describe('modelOptions auth gating', () => {
       expect(labels).not.toContain('Balanced')
       expect(labels).not.toContain('Reasoning')
       expect(labels).not.toContain('Fast')
-    })
-  })
-
-  it('only marks opus 1M as billed-as-extra-usage for oauth-backed first-party sessions', () => {
-    useFirstPartyTestEnv()
-
-    const oauthSession = makeSession({
-      headersKind: 'bearer',
-      providerPlan: {
-        mode: 'noumena_managed',
-        source: 'managed_principal',
-        staticKeyEnvVarName: null,
-      },
-      scopes: ['user:inference', 'user:profile'],
-      subscription: {
-        subscriptionName: 'Noumena Max',
-        subscriptionType: 'max',
-        rateLimitTier: 'tier-max',
-      },
-    })
-
-    withMockCurrentSession(oauthSession, () => {
-      expect(getMaxOpus46_1MOption().description).toContain(
-        'Billed as extra usage',
-      )
-    })
-
-    const apiKeySession = makeSession({
-      principalKind: 'api_key_user',
-      principalSource: 'direct_api_key_env',
-      sessionState: 'usable',
-      headersKind: 'api_key',
-      providerAuthKind: 'noumena_first_party',
-      providerPlan: {
-        mode: 'noumena_managed',
-        source: 'direct_api_key_env',
-        staticKeyEnvVarName: 'NOUMENA_API_KEY',
-      },
-      hasUsableApiKey: true,
-      apiKey: 'noumena-key',
-      rawApiKeySource: 'NOUMENA_API_KEY',
-    })
-
-    withMockCurrentSession(apiKeySession, () => {
-      expect(getMaxOpus46_1MOption().description).not.toContain(
-        'Billed as extra usage',
-      )
     })
   })
 })

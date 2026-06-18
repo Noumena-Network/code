@@ -1,9 +1,4 @@
 import { getOauthConfig } from '../constants/oauth.js'
-import {
-  getAnthropicBaseUrl,
-  isFirstPartyBaseUrlValue,
-} from './model/providers.js'
-
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/$/, '')
 }
@@ -29,11 +24,6 @@ export function getSessionCompatiblePlatformBaseUrl(): string {
   const noumenaOverride = process.env.NOUMENA_PLATFORM_BASE_URL?.trim()
   if (noumenaOverride) {
     return normalizeBaseUrl(noumenaOverride)
-  }
-
-  const legacyAnthropicBaseUrl = getAnthropicBaseUrl()
-  if (isFirstPartyBaseUrlValue(legacyAnthropicBaseUrl)) {
-    return normalizeBaseUrl(legacyAnthropicBaseUrl)
   }
 
   return normalizeBaseUrl(getOauthConfig().BASE_API_URL)

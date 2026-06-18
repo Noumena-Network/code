@@ -1,13 +1,16 @@
 import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from '../../services/analytics/index.js'
-import { isEnvTruthy } from '../envUtils.js'
 
-export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 'foundry'
+// Noumena is the only supported model/API provider in NCode. Legacy
+// third-party cloud providers (Bedrock/Vertex/Foundry/BYOK) are no longer
+// supported, so the runtime provider is always Noumena-first-party.
+export type APIProvider = 'firstParty'
 
 const FIRST_PARTY_NOUMENA_HOSTS = [
   'api.noumena.com',
   'code.noumena.com',
 ]
-const FIRST_PARTY_ANTHROPIC_HOSTS = ['api.anthropic.com']
+
+export const NOUMENA_API_PROVIDER: APIProvider = 'firstParty'
 
 function normalizeBaseUrl(value: string | undefined): string | undefined {
   const baseUrl = value?.trim()
@@ -18,37 +21,16 @@ export function getNoumenaBaseUrl(): string | undefined {
   return normalizeBaseUrl(process.env.NOUMENA_BASE_URL)
 }
 
-export function getAnthropicBaseUrl(): string | undefined {
-  return normalizeBaseUrl(process.env.ANTHROPIC_BASE_URL)
-}
-
 export function getFirstPartyBaseUrlOverride(): string | undefined {
-  return getNoumenaBaseUrl() ?? getAnthropicBaseUrl()
+  return getNoumenaBaseUrl()
 }
 
 export function getAPIProvider(): APIProvider {
-  return isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)
-    ? 'bedrock'
-    : isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX)
-      ? 'vertex'
-      : isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
-        ? 'foundry'
-        : 'firstParty'
+  return NOUMENA_API_PROVIDER
 }
 
 export function getAPIProviderForStatsig(): AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS {
   return getAPIProvider() as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
-}
-
-function getAllowedFirstPartyHosts(): string[] {
-  const allowedHosts = [
-    ...FIRST_PARTY_NOUMENA_HOSTS,
-    ...FIRST_PARTY_ANTHROPIC_HOSTS,
-  ]
-  if (process.env.USER_TYPE === 'ant') {
-    allowedHosts.push('api-staging.anthropic.com')
-  }
-  return allowedHosts
 }
 
 export function isFirstPartyBaseUrlValue(
@@ -59,20 +41,16 @@ export function isFirstPartyBaseUrlValue(
   }
   try {
     const host = new URL(baseUrl).host
-    return getAllowedFirstPartyHosts().includes(host)
+    return FIRST_PARTY_NOUMENA_HOSTS.includes(host)
   } catch {
     return false
   }
 }
 
 /**
- * Check whether the configured first-party base URL override still points at
- * a Noumena-owned host. During migration, we also treat legacy Anthropic-owned
- * first-party hosts as trusted so behavior remains stable until the rest of the
- * stack is repointed.
- *
- * Returns true when no explicit override is set, because the default OAuth
- * BASE_API_URL path is still considered first-party.
+ * Check whether the configured first-party base URL override points at a
+ * Noumena-owned host. Returns true when no explicit override is set, because
+ * the default OAuth BASE_API_URL path is still considered first-party.
  */
 export function isFirstPartyNoumenaBaseUrl(): boolean {
   const baseUrl = getFirstPartyBaseUrlOverride()
@@ -80,12 +58,4 @@ export function isFirstPartyNoumenaBaseUrl(): boolean {
     return true
   }
   return isFirstPartyBaseUrlValue(baseUrl)
-}
-
-/**
- * Temporary compatibility alias while the rest of `code/` is migrated away
- * from Anthropic-specific naming.
- */
-export function isFirstPartyAnthropicBaseUrl(): boolean {
-  return isFirstPartyNoumenaBaseUrl()
 }

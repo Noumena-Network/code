@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 
-const { getOauthConfig } = await import(import.meta.resolve('../constants/oauth.ts'))
+const { getOauthConfig } = await import(
+  import.meta.resolve('../constants/oauth.ts')
+)
 
 const {
   buildNoumenaPlatformUrl,
@@ -27,7 +29,6 @@ function oauthWebSocketBaseUrl(): string {
 
 function resetEnv() {
   delete process.env.NOUMENA_PLATFORM_BASE_URL
-  delete process.env.ANTHROPIC_BASE_URL
   delete process.env.USER_TYPE
 }
 
@@ -62,26 +63,13 @@ describe('platformUrls', () => {
 
   it('uses the Noumena platform override for session-compatible base urls', () => {
     process.env.NOUMENA_PLATFORM_BASE_URL = 'http://127.0.0.1:4100/'
-    process.env.ANTHROPIC_BASE_URL = 'https://api.anthropic.com'
 
     expect(getSessionCompatiblePlatformBaseUrl()).toBe(
       'http://127.0.0.1:4100',
     )
   })
 
-  it('preserves legacy first-party anthropic base urls for session-compatible flows', () => {
-    process.env.ANTHROPIC_BASE_URL = 'https://api.anthropic.com/'
-
-    expect(getSessionCompatiblePlatformBaseUrl()).toBe(
-      'https://api.anthropic.com',
-    )
-  })
-
-  it('ignores non-first-party ANTHROPIC_BASE_URL values for session-compatible flows', () => {
-    process.env.ANTHROPIC_BASE_URL = 'http://127.0.0.1:18000'
-
-    expect(getSessionCompatiblePlatformBaseUrl()).toBe(
-      oauthBaseApiUrl(),
-    )
+  it('falls back to the oauth base api url for session-compatible base urls', () => {
+    expect(getSessionCompatiblePlatformBaseUrl()).toBe(oauthBaseApiUrl())
   })
 })

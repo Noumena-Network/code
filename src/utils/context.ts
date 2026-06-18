@@ -2,13 +2,11 @@
 import { CONTEXT_1M_BETA_HEADER } from '../constants/betas.js'
 import { getGlobalConfig } from './config.js'
 import { isEnvTruthy } from './envUtils.js'
-import { getCanonicalName } from './model/model.js'
-import { resolveAntModel } from './model/antModels.js'
 import { getModelCapability } from './model/modelCapabilities.js'
 import { resolveNCodeManagedModel } from './model/ncodeModels.js'
 import { isInternalBuild } from 'src/capabilities/static.js'
 
-// Model context window size (200k tokens for all models right now)
+// Model context window size for legacy/unknown models
 export const MODEL_CONTEXT_WINDOW_DEFAULT = 200_000
 
 // Maximum output tokens for compact operations
@@ -18,18 +16,13 @@ export const COMPACT_MAX_OUTPUT_TOKENS = 20_000
 const MAX_OUTPUT_TOKENS_DEFAULT = 32_000
 const MAX_OUTPUT_TOKENS_UPPER_LIMIT = 64_000
 
-// Capped default for slot-reservation optimization. BQ p99 output = 4,911
-// tokens, so 32k/64k defaults over-reserve 8-16× slot capacity. With the cap
-// enabled, <1% of requests hit the limit; those get one clean retry at 64k
-// (see query.ts max_output_tokens_escalate). Cap is applied in
-// claude.ts:getMaxOutputTokensForModel to avoid the growthbook→betas→context
-// import cycle.
+// Capped default for slot-reservation optimization.
 export const CAPPED_DEFAULT_MAX_TOKENS = 8_000
 export const ESCALATED_MAX_TOKENS = 64_000
 
 /**
  * Check if 1M context is disabled via environment variable.
- * Used by C4E admins to disable 1M context for HIPAA compliance.
+ * Used by admins to disable 1M context for compliance.
  */
 export function is1mContextDisabled(): boolean {
   return isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT)
@@ -42,13 +35,13 @@ export function has1mContext(model: string): boolean {
   return /\[1m\]/i.test(model)
 }
 
-// @[MODEL LAUNCH]: Update this pattern if the new model supports 1M context
+// No public Anthropic models remain; 1M context is supported by any
+// Noumena-managed model when requested explicitly via the [1m] suffix.
 export function modelSupports1M(model: string): boolean {
   if (is1mContextDisabled()) {
     return false
   }
-  const canonical = getCanonicalName(model)
-  return canonical.includes('claude-sonnet-4') || canonical.includes('opus-4-6')
+  return resolveNCodeManagedModel(model) !== undefined
 }
 
 export function getContextWindowForModel(
@@ -56,9 +49,6 @@ export function getContextWindowForModel(
   betas?: string[],
 ): number {
   // Allow override via environment variable (ant-only)
-  // This takes precedence over all other context window resolution, including 1M detection,
-  // so users can cap the effective context window for local decisions (auto-compact, etc.)
-  // while still using a 1M-capable endpoint.
   if (
     isInternalBuild() &&
     process.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS
@@ -69,7 +59,7 @@ export function getContextWindowForModel(
     }
   }
 
-  // [1m] suffix — explicit client-side opt-in, respected over all detection
+  // [1m] suffix — explicit client-side opt-in
   if (has1mContext(model)) {
     return 1_000_000
   }
@@ -93,35 +83,16 @@ export function getContextWindowForModel(
   if (betas?.includes(CONTEXT_1M_BETA_HEADER) && modelSupports1M(model)) {
     return 1_000_000
   }
-  if (getSonnet1mExpTreatmentEnabled(model)) {
-    return 1_000_000
-  }
-  if (isInternalBuild()) {
-    const antModel = resolveAntModel(model)
-    if (antModel?.contextWindow) {
-      return antModel.contextWindow
-    }
-  }
+
   return MODEL_CONTEXT_WINDOW_DEFAULT
 }
 
-export function getSonnet1mExpTreatmentEnabled(model: string): boolean {
-  if (is1mContextDisabled()) {
-    return false
-  }
-  // Only applies to sonnet 4.6 without an explicit [1m] suffix
-  if (has1mContext(model)) {
-    return false
-  }
-  if (!getCanonicalName(model).includes('sonnet-4-6')) {
-    return false
-  }
-  return getGlobalConfig().clientDataCache?.['coral_reef_sonnet'] === 'true'
+export function getSonnet1mExpTreatmentEnabled(_model: string): boolean {
+  return false
 }
 
 /**
  * Calculate context window usage percentage from token usage data.
- * Returns used and remaining percentages, or null values if no usage data.
  */
 export function calculateContextPercentages(
   currentUsage: {
@@ -158,9 +129,6 @@ export function getModelMaxOutputTokens(model: string): {
   default: number
   upperLimit: number
 } {
-  let defaultTokens: number
-  let upperLimit: number
-
   const ncodeModel = resolveNCodeManagedModel(model)
   if (ncodeModel) {
     return {
@@ -169,65 +137,22 @@ export function getModelMaxOutputTokens(model: string): {
     }
   }
 
-  if (isInternalBuild()) {
-    const antModel = resolveAntModel(model.toLowerCase())
-    if (antModel) {
-      defaultTokens = antModel.defaultMaxTokens ?? MAX_OUTPUT_TOKENS_DEFAULT
-      upperLimit = antModel.upperMaxTokensLimit ?? MAX_OUTPUT_TOKENS_UPPER_LIMIT
-      return { default: defaultTokens, upperLimit }
+  const cap = getModelCapability(model)
+  if (cap?.max_tokens && cap.max_tokens >= 4_096) {
+    return {
+      default: Math.min(MAX_OUTPUT_TOKENS_DEFAULT, cap.max_tokens),
+      upperLimit: cap.max_tokens,
     }
   }
 
-  const m = getCanonicalName(model)
-
-  if (m.includes('opus-4-6')) {
-    defaultTokens = 64_000
-    upperLimit = 128_000
-  } else if (m.includes('sonnet-4-6')) {
-    defaultTokens = 32_000
-    upperLimit = 128_000
-  } else if (
-    m.includes('opus-4-5') ||
-    m.includes('sonnet-4') ||
-    m.includes('haiku-4')
-  ) {
-    defaultTokens = 32_000
-    upperLimit = 64_000
-  } else if (m.includes('opus-4-1') || m.includes('opus-4')) {
-    defaultTokens = 32_000
-    upperLimit = 32_000
-  } else if (m.includes('claude-3-opus')) {
-    defaultTokens = 4_096
-    upperLimit = 4_096
-  } else if (m.includes('claude-3-sonnet')) {
-    defaultTokens = 8_192
-    upperLimit = 8_192
-  } else if (m.includes('claude-3-haiku')) {
-    defaultTokens = 4_096
-    upperLimit = 4_096
-  } else if (m.includes('3-5-sonnet') || m.includes('3-5-haiku')) {
-    defaultTokens = 8_192
-    upperLimit = 8_192
-  } else if (m.includes('3-7-sonnet')) {
-    defaultTokens = 32_000
-    upperLimit = 64_000
-  } else {
-    defaultTokens = MAX_OUTPUT_TOKENS_DEFAULT
-    upperLimit = MAX_OUTPUT_TOKENS_UPPER_LIMIT
+  return {
+    default: MAX_OUTPUT_TOKENS_DEFAULT,
+    upperLimit: MAX_OUTPUT_TOKENS_UPPER_LIMIT,
   }
-
-  const cap = getModelCapability(model)
-  if (cap?.max_tokens && cap.max_tokens >= 4_096) {
-    upperLimit = cap.max_tokens
-    defaultTokens = Math.min(defaultTokens, upperLimit)
-  }
-
-  return { default: defaultTokens, upperLimit }
 }
 
 /**
- * Returns the max thinking budget tokens for a given model. The max
- * thinking tokens should be strictly less than the max output tokens.
+ * Returns the max thinking budget tokens for a given model.
  *
  * Deprecated since newer models use adaptive thinking rather than a
  * strict thinking token budget.
