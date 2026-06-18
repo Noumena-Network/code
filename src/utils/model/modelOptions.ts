@@ -11,8 +11,11 @@ import { getSettings_DEPRECATED } from '../settings/settings.js'
 import { getCurrentSubscriptionSessionState } from '../subscriptionSession.js'
 import { checkOpus1mAccess, checkSonnet1mAccess } from './check1mAccess.js'
 import { getAntModels } from './antModels.js'
-import { getNCodeManagedModelOptions } from './ncodeModels.js'
-import { getAPIProvider } from './providers.js'
+import {
+  getNCodeManagedModelOptions,
+  resolveNCodeManagedModel,
+} from './ncodeModels.js'
+import { getAPIProvider, getNoumenaBaseUrl } from './providers.js'
 import { isModelAllowed } from './modelAllowlist.js'
 import {
   getCanonicalName,
@@ -38,6 +41,34 @@ export type ModelOption = {
   label: string
   description: string
   descriptionForModel?: string
+}
+
+function hasEnvValue(value: string | undefined): boolean {
+  return Boolean(value?.trim())
+}
+
+function isNCodeManagedFirstPartySurface(): boolean {
+  return (
+    getAPIProvider() === 'firstParty' &&
+    (Boolean(getNoumenaBaseUrl()) ||
+      hasEnvValue(process.env.NOUMENA_MODEL) ||
+      hasEnvValue(process.env.NOUMENA_SMALL_FAST_MODEL) ||
+      hasEnvValue(process.env.NOUMENA_DEFAULT_FLASH_MODEL) ||
+      hasEnvValue(process.env.NOUMENA_DEFAULT_SONNET_MODEL) ||
+      hasEnvValue(process.env.NOUMENA_DEFAULT_OPUS_MODEL) ||
+      hasEnvValue(process.env.NOUMENA_DEFAULT_HAIKU_MODEL))
+  )
+}
+
+export function modelOptionsReferToSameModel(
+  a: ModelSetting,
+  b: ModelSetting,
+): boolean {
+  if (a === b) return true
+  if (typeof a !== 'string' || typeof b !== 'string') return false
+  const aProfile = resolveNCodeManagedModel(a)
+  const bProfile = resolveNCodeManagedModel(b)
+  return Boolean(aProfile && bProfile && aProfile.model === bProfile.model)
 }
 
 export function getDefaultOptionForUser(fastMode = false): ModelOption {
@@ -296,6 +327,13 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
     ])
   }
 
+  if (isNCodeManagedFirstPartySurface()) {
+    return dedupeModelOptions([
+      getDefaultOptionForUser(fastMode),
+      ...getNCodeManagedModelOptions(),
+    ])
+  }
+
   if (session.isOauthBackedFirstPartySession) {
     if (session.isMaxSubscriber || session.isTeamPremiumSubscriber) {
       // Max and Team Premium users: Opus is default, show Sonnet as alternative
@@ -502,7 +540,10 @@ export function getModelOptions(fastMode = false): ModelOption[] {
   } else if (initialMainLoopModel !== null) {
     customModel = initialMainLoopModel
   }
-  if (customModel === null || options.some(opt => opt.value === customModel)) {
+  if (
+    customModel === null ||
+    options.some(opt => modelOptionsReferToSameModel(opt.value, customModel))
+  ) {
     return filterModelOptionsByAllowlist(options)
   } else if (customModel === 'opusplan') {
     return filterModelOptionsByAllowlist([...options, getOpusPlanOption()])
