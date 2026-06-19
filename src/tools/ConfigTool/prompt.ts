@@ -59,7 +59,7 @@ export function generatePrompt(): string {
 ## Configurable settings list
 The following settings are available for you to change:
 
-### Global Runtime Settings (stored in ~/.ncode/.config.json; legacy ~/.claude.json)
+### Global Runtime Settings (stored in ~/.ncode/.config.json)
 ${globalSettings.join('\n')}
 
 ### User/Project Settings (stored in ~/.ncode/settings.json and .ncode/settings.json; legacy ~/.claude/settings.json and .claude/settings.json)

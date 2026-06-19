@@ -50,8 +50,12 @@ describe('computer use canonical session helpers', () => {
     expect(hasRequiredChicagoSubscriptionForSession(null)).toBe(false)
   })
 
-  it('preserves ant bypass behavior', () => {
+  it('only preserves the dynamic ant bypass after module import', () => {
     process.env.NCODE_BUILD_MODE = 'noumena'
+    delete process.env.USER_TYPE
+    expect(hasRequiredChicagoSubscriptionForSession(null)).toBe(false)
+
+    delete process.env.NCODE_BUILD_MODE
     process.env.USER_TYPE = 'ant'
     expect(hasRequiredChicagoSubscriptionForSession(null)).toBe(true)
   })

@@ -1,10 +1,6 @@
 import { chmodSync } from 'fs'
 import { join } from 'path'
-import {
-  getCanonicalNcodeConfigHomeDir,
-  getClaudeConfigHomeDir,
-  getLegacyClaudeConfigHomeDir,
-} from '../envUtils.js'
+import { getCanonicalNcodeConfigHomeDir } from '../envUtils.js'
 import { getErrnoCode } from '../errors.js'
 import { getFsImplementation } from '../fsOperations.js'
 import {
@@ -28,7 +24,7 @@ function dedupePaths(paths: string[]): string[] {
 }
 
 function getStoragePath(): { storageDir: string; storagePath: string } {
-  const storageDir = getClaudeConfigHomeDir()
+  const storageDir = getCanonicalNcodeConfigHomeDir()
   const storageFileName = '.credentials.json'
   return { storageDir, storagePath: join(storageDir, storageFileName) }
 }
@@ -38,12 +34,7 @@ export function getPrimaryPlainTextStoragePath(): string {
 }
 
 export function getPlainTextStorageReadPaths(): string[] {
-  const storageFileName = '.credentials.json'
-  return dedupePaths([
-    getPrimaryPlainTextStoragePath(),
-    join(getCanonicalNcodeConfigHomeDir(), storageFileName),
-    join(getLegacyClaudeConfigHomeDir(), storageFileName),
-  ])
+  return dedupePaths([getPrimaryPlainTextStoragePath()])
 }
 
 export function getExistingPlainTextStoragePath(): string | null {

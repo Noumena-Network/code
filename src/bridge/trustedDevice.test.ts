@@ -15,8 +15,8 @@ import {
 let configDir: string
 
 const originalAxiosPost = axios.post
-const originalClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR
 const originalNcodeConfigDir = process.env.NCODE_CONFIG_DIR
+const originalClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR
 const originalFcOverrides = process.env.CLAUDE_INTERNAL_FC_OVERRIDES
 const originalNoumenaPlatformBaseUrl = process.env.NOUMENA_PLATFORM_BASE_URL
 const originalTrustedDeviceToken = process.env.CLAUDE_TRUSTED_DEVICE_TOKEN
@@ -52,8 +52,8 @@ function setTrustedDeviceGate(enabled: boolean): void {
 beforeEach(async () => {
   configDir = await mkdtemp(join(tmpdir(), 'trusted-device-'))
 
-  process.env.CLAUDE_CONFIG_DIR = configDir
   process.env.NCODE_CONFIG_DIR = configDir
+  process.env.CLAUDE_CONFIG_DIR = configDir
   process.env.USER_TYPE = 'ant'
   process.env.NOUMENA_PLATFORM_BASE_URL = 'https://platform.example'
   setTrustedDeviceGate(true)
@@ -66,16 +66,16 @@ afterEach(async () => {
   clearOAuthTokenCache()
   clearTrustedDeviceTokenCache()
 
-  if (originalClaudeConfigDir === undefined) {
-    delete process.env.CLAUDE_CONFIG_DIR
-  } else {
-    process.env.CLAUDE_CONFIG_DIR = originalClaudeConfigDir
-  }
-
   if (originalNcodeConfigDir === undefined) {
     delete process.env.NCODE_CONFIG_DIR
   } else {
     process.env.NCODE_CONFIG_DIR = originalNcodeConfigDir
+  }
+
+  if (originalClaudeConfigDir === undefined) {
+    delete process.env.CLAUDE_CONFIG_DIR
+  } else {
+    process.env.CLAUDE_CONFIG_DIR = originalClaudeConfigDir
   }
 
   if (originalFcOverrides === undefined) {

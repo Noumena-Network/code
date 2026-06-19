@@ -157,6 +157,7 @@ function getOauthCallbackRelayEndpoint(path: string): string {
 export async function registerOauthCallbackRelay(params: {
   relayId: string
   state: string
+  timeoutMs?: number
 }): Promise<void> {
   await axios.post(
     getOauthCallbackRelayEndpoint('/oauth/callback-relay/register'),
@@ -166,7 +167,7 @@ export async function registerOauthCallbackRelay(params: {
     },
     {
       headers: { 'Content-Type': 'application/json' },
-      timeout: 10000,
+      timeout: params.timeoutMs ?? 1000,
     },
   )
 }
@@ -175,19 +176,23 @@ export async function pollOauthCallbackRelay(
   relayId: string,
 ): Promise<string | null> {
   try {
-    const response = await axios.post<{ authorization_code: string }>(
+    const response = await axios.post<{
+      authorization_code?: string
+      pending?: boolean
+    }>(
       getOauthCallbackRelayEndpoint('/oauth/callback-relay/poll'),
       { relay_id: relayId },
       {
         headers: { 'Content-Type': 'application/json' },
         timeout: 10000,
-        validateStatus: status => status === 200 || status === 404,
+        validateStatus: status =>
+          status === 200 || status === 202 || status === 204 || status === 404,
       },
     )
-    if (response.status === 404) {
+    if (response.status === 202 || response.status === 204 || response.status === 404) {
       return null
     }
-    return response.data.authorization_code
+    return response.data.authorization_code ?? null
   } catch (error) {
     logForDebugging(
       `OAuth callback relay poll failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -434,7 +439,7 @@ export function isOAuthTokenExpired(expiresAt: number | null): boolean {
   return expiresWithBuffer >= expiresAt
 }
 
-export async function fetchProfileInfo(accessToken: string): Promise<{
+export async function fetchProfileInfo(accessToken: string, timeout = 10000): Promise<{
   subscriptionType: SubscriptionType | null
   displayName?: string
   rateLimitTier: RateLimitTier | null
@@ -444,7 +449,7 @@ export async function fetchProfileInfo(accessToken: string): Promise<{
   subscriptionCreatedAt?: string
   rawProfile?: OAuthProfileResponse
 }> {
-  const profile = await getOauthProfileFromOauthToken(accessToken)
+  const profile = await getOauthProfileFromOauthToken(accessToken, timeout)
   const orgType = profile?.organization?.organization_type
 
   // Reuse the logic from fetchSubscriptionType

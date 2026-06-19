@@ -11,8 +11,8 @@ import {
 
 describe('auto compact managed model prompt budgets', () => {
   test.each([
-    ['kimi-2.7-coder alias', 'kimi-2.7-coder'],
-    ['kimi-2.7-coder model', KIMI_2_7_CODER_MODEL],
+    ['k2.7 alias', 'k2.7'],
+    ['k2.7 model', KIMI_2_7_CODER_MODEL],
   ])(
     '%s treats the managed context window as an input prompt budget',
     (_label, model) => {

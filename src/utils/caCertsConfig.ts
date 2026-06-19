@@ -28,8 +28,8 @@ import { getSettingsForSource } from './settings/settings.js'
  * is lazy-initialized) and ensure Node.js compatibility.
  *
  * This is safe to call before the trust dialog because we only read from
- * user-controlled files (typically ~/.ncode/settings.json and global config,
- * with legacy ~/.claude/settings.json and ~/.claude.json still supported),
+ * user-controlled files (typically ~/.ncode/settings.json and ~/.ncode/.config.json,
+ * with legacy ~/.claude/settings.json still supported for user settings),
  * not from project-level settings.
  */
 export function applyExtraCACertsFromConfig(): void {

@@ -9,8 +9,8 @@ import {
 
 describe('NCode managed model token contracts', () => {
   test.each([
-    ['kimi-2.7-coder alias', 'kimi-2.7-coder'],
-    ['kimi-2.7-coder model', KIMI_2_7_CODER_MODEL],
+    ['k2.7 alias', 'k2.7'],
+    ['k2.7 model', KIMI_2_7_CODER_MODEL],
   ])('%s uses the managed prompt and sequence token contract', (_label, model) => {
     expect(getContextWindowForModel(model)).toBe(
       NCODE_MANAGED_MODEL_MAX_PROMPT_TOKENS,

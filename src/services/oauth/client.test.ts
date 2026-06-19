@@ -66,6 +66,7 @@ afterEach(() => {
 
 describe('buildAuthUrl', () => {
   it('uses the Noumena issuer authorize URL and client id for automatic flows', () => {
+    delete process.env.NOUMENA_OAUTH_WEB_BASE_URL
     process.env.NOUMENA_ISSUER_BASE_URL = 'https://issuer.noumena.test'
     process.env.NOUMENA_OAUTH_CLIENT_ID = 'noumena-client-id'
 

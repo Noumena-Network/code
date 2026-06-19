@@ -28,11 +28,12 @@ export async function getOauthProfileFromApiKey(): Promise<
 
 export async function getOauthProfileFromOauthToken(
   accessToken: string,
+  timeout = 10000,
 ): Promise<OAuthProfileResponse | undefined> {
   try {
     return await getIdentityClient().getOauthProfileFromOauthToken({
       accessToken,
-      timeout: 10000,
+      timeout,
     })
   } catch (error) {
     logError(error as Error)

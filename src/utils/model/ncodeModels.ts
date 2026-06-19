@@ -25,9 +25,7 @@ export const KIMI_2_7_CODER_MODEL = '/data/models/hf/moonshotai__Kimi-K2.7-Code'
 
 // K2.6 is internal-only and not available in public/OSS builds. Keep both the
 // model identifier and base URL out of the public profile list; configure them
-// via env vars in internal environments only.
-// const KIMI_K2_6_BASE_URL = process.env.NCODE_K2_6_BASE_URL ?? ''
-// export const KIMI_K2_6_MODEL = process.env.NCODE_K2_6_MODEL ?? ''
+// through internal deployment/runtime configuration only.
 
 export const NCODE_MANAGED_MODEL_PROFILES = [
   {
@@ -49,21 +47,6 @@ export const NCODE_MANAGED_MODEL_PROFILES = [
     upperMaxTokensLimit: NCODE_MANAGED_MODEL_MAX_TOKENS,
     baseUrl: KIMI_2_7_CODER_BASE_URL,
   },
-  // K2.6 is intentionally omitted from the public profile list. It remains
-  // usable only in internal environments via env-based configuration.
-  /* {
-    primaryAlias: 'k2.6',
-    aliases: ['k2.6', 'kimi-k2.6', 'kimi'] as const,
-    model: KIMI_K2_6_MODEL,
-    label: 'Kimi K2.6',
-    description: 'General coding model with thinking support',
-    defaultEffortLevel: 'high',
-    supportsMaxEffort: false,
-    contextWindow: NCODE_MANAGED_MODEL_MAX_PROMPT_TOKENS,
-    defaultMaxTokens: NCODE_MANAGED_MODEL_MAX_TOKENS,
-    upperMaxTokensLimit: NCODE_MANAGED_MODEL_MAX_TOKENS,
-    baseUrl: KIMI_K2_6_BASE_URL,
-  }, */
 ] as const satisfies readonly NCodeManagedModelProfile[]
 
 export const NCODE_MANAGED_MODEL_ALIASES: readonly string[] =

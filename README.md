@@ -48,6 +48,20 @@ NOUMENA_PLATFORM_BASE_URL=https://api.noumena.com
 NOUMENA_OAUTH_WEB_BASE_URL=https://code.noumena.com
 ```
 
+## Model selection
+
+The current OSS build ships the Kimi 2.7 Coder managed model profile as the only public first-party model. You must select it explicitly; ncode does not silently switch your session to a managed model if you have not chosen one.
+
+Use the `--model` flag when starting ncode:
+
+```bash
+.tmp/packages/ncode-0.1.0-linux-x64/ncode --model kimi-2.7-coder
+```
+
+Or run `/model` inside the REPL and pick `Kimi 2.7 Coder`.
+
+Recognized aliases include `kimi-2.7-coder`, `k2.7`, `kimi-2.7`, and `kimi 2.7 coder`. You can also set `NOUMENA_MODEL=kimi-2.7-coder` in your environment.
+
 ## Requirements
 
 Build requirements:

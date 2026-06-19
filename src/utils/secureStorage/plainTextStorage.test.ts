@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdtemp, rm, writeFile } from 'fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import {
@@ -26,7 +26,7 @@ afterEach(() => {
   }
 })
 
-describe('plainTextStorage compatibility fallback', () => {
+describe('plainTextStorage ncode isolation', () => {
   it('prefers the explicit NCODE_CONFIG_DIR credential file when present', async () => {
     const ncodeDir = await mkdtemp(join(tmpdir(), 'ncode-credentials-'))
     const legacyDir = await mkdtemp(join(tmpdir(), 'legacy-credentials-'))
@@ -59,28 +59,42 @@ describe('plainTextStorage compatibility fallback', () => {
     }
   })
 
-  it('falls back to the legacy Claude credential file when the explicit ncode dir is empty', async () => {
+  it('does not read, overwrite, or delete legacy Claude credentials', async () => {
     const ncodeDir = await mkdtemp(join(tmpdir(), 'ncode-credentials-'))
     const legacyDir = await mkdtemp(join(tmpdir(), 'legacy-credentials-'))
+    const legacyCredentialPath = join(legacyDir, '.credentials.json')
+    const legacyCredentialJson = JSON.stringify({
+      claudeAiOauth: { accessToken: 'legacy-claude-token' },
+    })
     try {
       process.env.NCODE_CONFIG_DIR = ncodeDir
       process.env.CLAUDE_CONFIG_DIR = legacyDir
-      await writeFile(
-        join(legacyDir, '.credentials.json'),
-        JSON.stringify({ claudeAiOauth: { accessToken: 'legacy-token' } }),
-        'utf8',
-      )
+      await writeFile(legacyCredentialPath, legacyCredentialJson, 'utf8')
 
       expect(getPlainTextStorageReadPaths()).toEqual([
         join(ncodeDir, '.credentials.json'),
-        join(legacyDir, '.credentials.json'),
       ])
-      expect(getExistingPlainTextStoragePath()).toBe(
-        join(legacyDir, '.credentials.json'),
+      expect(getExistingPlainTextStoragePath()).toBeNull()
+      expect(plainTextStorage.read()).toBeNull()
+
+      expect(
+        plainTextStorage.update({
+          claudeAiOauth: { accessToken: 'ncode-token' },
+        }),
+      ).toMatchObject({
+        success: true,
+      })
+      expect(await readFile(legacyCredentialPath, 'utf8')).toBe(
+        legacyCredentialJson,
       )
       expect(plainTextStorage.read()).toEqual({
-        claudeAiOauth: { accessToken: 'legacy-token' },
+        claudeAiOauth: { accessToken: 'ncode-token' },
       })
+
+      expect(plainTextStorage.delete()).toBe(true)
+      expect(await readFile(legacyCredentialPath, 'utf8')).toBe(
+        legacyCredentialJson,
+      )
     } finally {
       await rm(ncodeDir, { recursive: true, force: true })
       await rm(legacyDir, { recursive: true, force: true })
