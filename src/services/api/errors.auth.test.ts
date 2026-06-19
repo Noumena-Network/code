@@ -315,7 +315,7 @@ describe('errors canonical auth classification', () => {
     )
 
     expect(getPrimaryErrorText(message)).not.toContain(
-      'This priority model is not available with the Claude Pro plan.',
+      'This priority model is not available with the NCode Pro plan.',
     )
   })
 })

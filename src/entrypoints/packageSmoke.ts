@@ -1,6 +1,7 @@
 process.env.NCODE_ENABLE_NATIVE_FENCED_CODE = '1'
 
 import { getImageCreator, getImageProcessor } from '../tools/FileReadTool/imageProcessor.js'
+import { resolvePythonReplHostExecutable } from '../tools/REPLTool/pyReplHost.js'
 import { ripgrepCommand } from '../utils/ripgrep.js'
 import { isInBundledMode, isRunningWithBun } from '../utils/bundledMode.js'
 import { renderNativeFencedCode } from '../utils/markdown/nativeFencedCodeRenderer.js'
@@ -102,6 +103,31 @@ if (ripgrepFilesCode !== 0 || ripgrepFilesCount === 0) {
   )
 }
 
+const pyReplHostPath = resolvePythonReplHostExecutable()
+let pyReplHostCode: number | null = null
+if (pyReplHostPath) {
+  const pyReplHostProbe = Bun.spawn({
+    cmd: [pyReplHostPath],
+    stdin: 'ignore',
+    stderr: 'pipe',
+    stdout: 'pipe',
+  })
+  const [code, pyReplHostStdout, pyReplHostStderr] = await Promise.all([
+    pyReplHostProbe.exited,
+    new Response(pyReplHostProbe.stdout).text(),
+    new Response(pyReplHostProbe.stderr).text(),
+  ])
+  pyReplHostCode = code
+
+  if (pyReplHostCode !== 0) {
+    throw new Error(
+      `Configured py_repl host probe failed (code=${pyReplHostCode}). stdout=${JSON.stringify(
+        pyReplHostStdout,
+      )} stderr=${JSON.stringify(pyReplHostStderr)}`,
+    )
+  }
+}
+
 console.log(
   JSON.stringify(
     {
@@ -122,6 +148,11 @@ console.log(
         path: rgPath,
         version: ripgrepVersionStdout.trim(),
         filesCount: ripgrepFilesCount,
+      },
+      pyReplHost: {
+        path: pyReplHostPath,
+        status: pyReplHostPath ? 'configured' : 'not-configured',
+        exitCode: pyReplHostCode,
       },
     },
     null,

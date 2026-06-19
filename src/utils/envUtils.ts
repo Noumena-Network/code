@@ -1,55 +1,34 @@
 import memoize from 'lodash-es/memoize.js'
-import { existsSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { isInternalBuild } from 'src/capabilities/static.js'
 
-// Phase 1 ncode abstraction: add ncode-named helpers and env aliases
-// while delegating to the current legacy compat storage underneath where needed.
-// Some subsystems can move to canonical .ncode storage earlier than others;
-// callers that need the canonical NCode root should use
-// getCanonicalNcodeConfigHomeDir(), while compatibility-aware callers should
-// use getNcodeConfigHomeDir()/getClaudeConfigHomeDir().
+// NCode-owned state must never default to Claude-owned paths. Legacy Claude
+// paths remain available through getLegacyClaudeConfigHomeDir() for explicit
+// read-only compatibility/import surfaces only.
 export const getLegacyClaudeConfigHomeDir = memoize(
   (): string => {
     return (process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')).normalize('NFC')
   },
-  () => process.env.CLAUDE_CONFIG_DIR,
+  () => `${process.env.CLAUDE_CONFIG_DIR ?? ''}::${homedir()}`,
 )
 
 export const getCanonicalNcodeConfigHomeDir = memoize(
   (): string => {
     return (process.env.NCODE_CONFIG_DIR ?? join(homedir(), '.ncode')).normalize('NFC')
   },
-  () => process.env.NCODE_CONFIG_DIR,
+  () => `${process.env.NCODE_CONFIG_DIR ?? ''}::${homedir()}`,
 )
 
-// Memoized: 150+ callers, many on hot paths. Keyed off NCODE_CONFIG_DIR and
-// CLAUDE_CONFIG_DIR so tests that change either env var get a fresh value
-// without explicit cache.clear. This remains the compatibility-aware helper:
-// it may still resolve to legacy Claude-era storage until each subsystem
-// explicitly migrates to canonical .ncode ownership.
+// Memoized: 150+ callers, many on hot paths. This is the NCode-owned config
+// home, kept under the historical function name for call-site compatibility.
+// Do not make this fall back to CLAUDE_CONFIG_DIR or ~/.claude; ncode login,
+// logout, refresh, cache, and session writes must not mutate Claude Code state.
 export const getNcodeConfigHomeDir = memoize(
   (): string => {
-    const explicitNcodeDir = process.env.NCODE_CONFIG_DIR
-    if (explicitNcodeDir) {
-      return explicitNcodeDir.normalize('NFC')
-    }
-
-    const legacyDir = getLegacyClaudeConfigHomeDir()
-    const canonicalNcodeDir = join(homedir(), '.ncode').normalize('NFC')
-
-    if (existsSync(canonicalNcodeDir)) {
-      return canonicalNcodeDir
-    }
-
-    if (existsSync(legacyDir)) {
-      return legacyDir
-    }
-
-    return canonicalNcodeDir
+    return getCanonicalNcodeConfigHomeDir()
   },
-  () => `${process.env.NCODE_CONFIG_DIR ?? ''}::${process.env.CLAUDE_CONFIG_DIR ?? ''}`,
+  () => `${process.env.NCODE_CONFIG_DIR ?? ''}::${homedir()}`,
 )
 
 export const getClaudeConfigHomeDir = getNcodeConfigHomeDir

@@ -16,26 +16,55 @@ export interface PreflightCheckResult {
   sslHint?: string;
 }
 
-export function getPreflightEndpoints(): string[] {
-  const tokenUrl = new URL(getOauthTokenUrl());
+type PreflightEndpointCheck = {
+  url: string
+  method: 'GET' | 'POST'
+  expectedStatuses: readonly number[]
+  data?: string
+  headers?: Record<string, string>
+}
+
+function getPreflightEndpointChecks(): PreflightEndpointCheck[] {
   return [
-    buildNoumenaPlatformUrl('/healthz'),
-    `${tokenUrl.origin}/.well-known/jwks.json`,
+    {
+      url: buildNoumenaPlatformUrl('/v1/me'),
+      method: 'GET',
+      expectedStatuses: [200, 401, 403],
+    },
+    {
+      url: getOauthTokenUrl(),
+      method: 'POST',
+      expectedStatuses: [200, 400, 401, 403],
+      data: 'probe=1',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    },
   ];
+}
+
+export function getPreflightEndpoints(): string[] {
+  return getPreflightEndpointChecks().map(endpoint => endpoint.url);
 }
 
 async function checkEndpoints(): Promise<PreflightCheckResult> {
   try {
-    const endpoints = getPreflightEndpoints();
-    const checkEndpoint = async (url: string): Promise<PreflightCheckResult> => {
+    const endpoints = getPreflightEndpointChecks();
+    const checkEndpoint = async (
+      endpoint: PreflightEndpointCheck,
+    ): Promise<PreflightCheckResult> => {
       try {
-        const response = await axios.get(url, {
+        const response = await axios.request({
+          url: endpoint.url,
+          method: endpoint.method,
+          data: endpoint.data,
+          timeout: 5000,
+          validateStatus: () => true,
           headers: {
-            'User-Agent': getUserAgent()
+            'User-Agent': getUserAgent(),
+            ...endpoint.headers,
           }
         });
-        if (response.status !== 200) {
-          const hostname = new URL(url).hostname;
+        if (!endpoint.expectedStatuses.includes(response.status)) {
+          const hostname = new URL(endpoint.url).hostname;
           return {
             success: false,
             error: `Failed to connect to ${hostname}: Status ${response.status}`
@@ -45,7 +74,7 @@ async function checkEndpoints(): Promise<PreflightCheckResult> {
           success: true
         };
       } catch (error) {
-        const hostname = new URL(url).hostname;
+        const hostname = new URL(endpoint.url).hostname;
         const sslHint = getSSLErrorHint(error);
         return {
           success: false,

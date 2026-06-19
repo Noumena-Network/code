@@ -109,7 +109,10 @@ export async function installOAuthTokens(
 
   // Reuse pre-fetched profile if available, otherwise fetch fresh
   const profile =
-    tokens.profile ?? (await getOauthProfileFromOauthToken(tokens.accessToken))
+    tokens.profile ??
+    (tokens.tokenAccount
+      ? undefined
+      : await getOauthProfileFromOauthToken(tokens.accessToken))
   const managedIdentityError = getManagedIdentityValidationError(
     tokens,
     profile,
@@ -151,17 +154,16 @@ export async function installOAuthTokens(
     })
   }
 
-  // Roles and first-token-date may fail for limited-scope tokens (e.g.
-  // inference-only from setup-token). They're not required for core auth.
-  await fetchAndStoreUserRoles(tokens.accessToken).catch(err =>
-    logForDebugging(String(err), { level: 'error' }),
-  )
-
   if (usesManagedInstallMode(tokens, mode)) {
-    await fetchAndStoreClaudeCodeFirstTokenDate().catch(err =>
-      logForDebugging(String(err), { level: 'error' }),
+    // Roles and first-token-date enrich UI state only; they are not required
+    // for a usable managed OAuth session and must not block login.
+    logForDebugging(
+      'Skipping login-critical roles and first-token-date enrichment for managed OAuth.',
     )
   } else {
+    await fetchAndStoreUserRoles(tokens.accessToken).catch(err =>
+      logForDebugging(String(err), { level: 'error' }),
+    )
     // API key creation is critical for Console users — let it throw.
     const apiKey = await createAndStoreApiKey(tokens.accessToken)
     if (!apiKey) {

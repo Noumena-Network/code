@@ -15,21 +15,13 @@ export function resolvePythonReplHostExecutableFromEnv(
   )
 }
 
-export async function resolveBundledPythonReplHostExecutable(
-  _loadAssetModule?: unknown,
-): Promise<string | null> {
-  return null
-}
-
-export async function resolvePythonReplHostExecutable(
+export function resolvePythonReplHostExecutable(
   env: NodeJS.ProcessEnv = process.env,
-  _loadAssetModule?: unknown,
-): Promise<string | null> {
+): string | null {
   return resolvePythonReplHostExecutableFromEnv(env)
 }
 
-// Note: the bundled py_repl host lived in an internal native host that is not included in
-// this OSS export. It was gated behind internal builds
-// in practice, but the bundling import still blocked standalone source builds.
-// via NCODE_PY_REPL_HOST_PATH when needed. OSS packages intentionally do not
-// embed or materialize a py_repl host.
+// The bundled py_repl host previously lived under code/rust/py_repl_host and
+// depended on codex/ sources outside the standalone code/ export. Keep the
+// supported runtime contract explicit: packaging may provide a host through
+// NCODE_PY_REPL_HOST_PATH, otherwise py_repl remains unavailable.

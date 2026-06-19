@@ -12,6 +12,19 @@ import type {
   SubscriptionType,
 } from './types.js'
 
+const CALLBACK_RELAY_REGISTRATION_ATTEMPTS = 3
+const CALLBACK_RELAY_REGISTRATION_TIMEOUT_MS = 1000
+const CALLBACK_RELAY_POLL_INTERVAL_MS = 250
+const LOGIN_PROFILE_FETCH_TIMEOUT_MS = 1000
+
+function oauthErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 /**
  * OAuth service that handles the OAuth 2.0 authorization code flow with PKCE.
  *
@@ -57,26 +70,14 @@ export class OAuthService {
     const codeChallenge = crypto.generateCodeChallenge(this.codeVerifier)
     const state = crypto.generateState()
     const manualRelayId = crypto.generateState()
-    let manualRelayEnabled = false
-
-    try {
-      await client.registerOauthCallbackRelay({
-        relayId: manualRelayId,
-        state,
-      })
-      manualRelayEnabled = true
-    } catch (error) {
-      logForDebugging(
-        `OAuth callback relay registration failed: ${error instanceof Error ? error.message : String(error)}`,
-      )
-    }
+    await this.registerCallbackRelayOrThrow(manualRelayId, state)
 
     // Build auth URLs for both automatic and manual flows
     const opts = {
       codeChallenge,
       state,
       port: this.port,
-      manualRelayId: manualRelayEnabled ? manualRelayId : undefined,
+      manualRelayId,
       loginWithClaudeAi: options?.loginWithClaudeAi,
       inferenceOnly: options?.inferenceOnly,
       orgUUID: options?.orgUUID,
@@ -103,7 +104,7 @@ export class OAuthService {
           await openBrowser(automaticFlowUrl) // Try automatic flow
         }
       },
-      manualRelayEnabled ? manualRelayId : undefined,
+      manualRelayId,
     )
 
     // Check if the automatic flow is still active (has a pending response)
@@ -127,7 +128,13 @@ export class OAuthService {
       // caller (installOAuthTokens in auth.ts).
       const profileInfo = await client.fetchProfileInfo(
         tokenResponse.access_token,
-      )
+        LOGIN_PROFILE_FETCH_TIMEOUT_MS,
+      ).catch(error => {
+        logForDebugging(
+          `OAuth profile enrichment skipped during login: ${oauthErrorMessage(error)}`,
+        )
+        return null
+      })
 
       // Handle success redirect for automatic flow
       if (isAutomaticFlow) {
@@ -137,9 +144,9 @@ export class OAuthService {
 
       return this.formatTokens(
         tokenResponse,
-        profileInfo.subscriptionType,
-        profileInfo.rateLimitTier,
-        profileInfo.rawProfile,
+        profileInfo?.subscriptionType ?? null,
+        profileInfo?.rateLimitTier ?? null,
+        profileInfo?.rawProfile,
       )
     } catch (error) {
       // If we have a pending response, send an error redirect before closing
@@ -151,6 +158,40 @@ export class OAuthService {
       // Always cleanup
       this.authCodeListener?.close()
     }
+  }
+
+  private async registerCallbackRelayOrThrow(
+    relayId: string,
+    state: string,
+  ): Promise<void> {
+    let lastError: unknown
+    for (let attempt = 1; attempt <= CALLBACK_RELAY_REGISTRATION_ATTEMPTS; attempt += 1) {
+      try {
+        await client.registerOauthCallbackRelay({
+          relayId,
+          state,
+          timeoutMs: CALLBACK_RELAY_REGISTRATION_TIMEOUT_MS,
+        })
+        if (attempt > 1) {
+          logForDebugging(
+            `OAuth callback relay registration recovered on attempt ${attempt}`,
+          )
+        }
+        return
+      } catch (error) {
+        lastError = error
+        logForDebugging(
+          `OAuth callback relay registration attempt ${attempt} failed: ${oauthErrorMessage(error)}`,
+        )
+        if (attempt < CALLBACK_RELAY_REGISTRATION_ATTEMPTS) {
+          await delay(150 * attempt)
+        }
+      }
+    }
+
+    throw new Error(
+      `OAuth callback relay registration failed after ${CALLBACK_RELAY_REGISTRATION_ATTEMPTS} attempts: ${oauthErrorMessage(lastError)}`,
+    )
   }
 
   private async waitForAuthorizationCode(
@@ -216,7 +257,7 @@ export class OAuthService {
         logEvent('ncode_oauth_callback_relay_success', {})
         return authorizationCode
       }
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await delay(CALLBACK_RELAY_POLL_INTERVAL_MS)
     }
   }
 

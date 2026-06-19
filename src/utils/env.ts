@@ -1,39 +1,18 @@
 import memoize from 'lodash-es/memoize.js'
-import { homedir } from 'os'
 import { join } from 'path'
-import { fileSuffixForOauthConfig } from '../constants/oauth.js'
 import { isRunningWithBun } from './bundledMode.js'
-import { getLegacyClaudeConfigHomeDir, getNcodeConfigHomeDir, isEnvTruthy } from './envUtils.js'
+import { getCanonicalNcodeConfigHomeDir, isEnvTruthy } from './envUtils.js'
 import { findExecutable } from './findExecutable.js'
-import { getFsImplementation } from './fsOperations.js'
 import { which } from './which.js'
 
 type Platform = 'win32' | 'darwin' | 'linux'
 
-// Config and data paths
-// Phase 1 ncode abstraction: keep legacy Claude-era file naming/layout under
-// the hood while accepting NCODE_CONFIG_DIR and exposing ncode-named helpers.
+// Config and data paths. NCode-owned global config is always
+// <ncode-config-home>/.config.json. Do not fall back to ~/.claude.json; that is
+// Claude Code-owned state and must not be mutated by ncode login/logout.
 export const getGlobalNcodeFile = memoize((): string => {
-  const ncodeConfigHome = getNcodeConfigHomeDir()
-  const legacyConfigHome = getLegacyClaudeConfigHomeDir()
-
-  if (getFsImplementation().existsSync(join(ncodeConfigHome, '.config.json'))) {
-    return join(ncodeConfigHome, '.config.json')
-  }
-
-  if (
-    ncodeConfigHome !== legacyConfigHome &&
-    getFsImplementation().existsSync(join(legacyConfigHome, '.config.json'))
-  ) {
-    return join(legacyConfigHome, '.config.json')
-  }
-
-  const filename = `.claude${fileSuffixForOauthConfig()}.json`
-  return join(
-    process.env.NCODE_CONFIG_DIR || process.env.CLAUDE_CONFIG_DIR || homedir(),
-    filename,
-  )
-}, () => `${process.env.NCODE_CONFIG_DIR ?? ''}::${process.env.CLAUDE_CONFIG_DIR ?? ''}::${fileSuffixForOauthConfig()}`)
+  return join(getCanonicalNcodeConfigHomeDir(), '.config.json')
+}, () => getCanonicalNcodeConfigHomeDir())
 
 export const getGlobalClaudeFile = getGlobalNcodeFile
 

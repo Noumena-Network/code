@@ -26,6 +26,7 @@ const originalStderrWrite = process.stderr.write.bind(process.stderr)
 const envKeys = [
   'NODE_ENV',
   'CI',
+  'NCODE_CONFIG_DIR',
   'CLAUDE_CONFIG_DIR',
   'NOUMENA_PLATFORM_BASE_URL',
   'NOUMENA_ISSUER_BASE_URL',
@@ -64,6 +65,7 @@ function restoreEnv(): void {
 function setStableTestRuntime(): void {
   process.env.NODE_ENV = 'development'
   delete process.env.CI
+  process.env.NCODE_CONFIG_DIR = tempConfigDir
   process.env.CLAUDE_CONFIG_DIR = tempConfigDir
   process.env.NOUMENA_PLATFORM_BASE_URL = 'https://api.noumena.test'
   process.env.NOUMENA_ISSUER_BASE_URL = 'https://auth.noumena.test'
@@ -129,7 +131,7 @@ beforeEach(async () => {
   axios.get = (async (url: string, options?: unknown) => {
     getCalls.push({ url, options })
     const pathname = new URL(url).pathname
-    if (pathname === '/api/oauth/claude_cli/roles') {
+    if (pathname === '/api/oauth/ncode/roles') {
       return {
         data: {
           organization_role: 'owner',
@@ -151,10 +153,7 @@ beforeEach(async () => {
   axios.post = (async (url: string, body?: unknown, options?: unknown) => {
     postCalls.push({ url, body, options })
     const pathname = new URL(url).pathname
-    if (
-      pathname === '/api/oauth/claude_cli/create_api_key' ||
-      pathname === '/api/oauth/ncode/create_api_key'
-    ) {
+    if (pathname === '/api/oauth/ncode/create_api_key') {
       return {
         data: { raw_key: 'sk-test' },
         status: 200,
@@ -190,17 +189,10 @@ describe('installOAuthTokens', () => {
       emailAddress: 'dev@noumena.com',
       organizationUuid: 'org-1',
       displayName: 'Dev',
-      hasExtraUsageEnabled: false,
-      accountCreatedAt: '2026-04-14T00:00:00.000Z',
     })
-    expect(getGlobalConfig().claudeCodeFirstTokenDate).toBe(
-      '2026-01-02T00:00:00.000Z',
-    )
     expect(getGlobalConfig().primaryApiKey).toBeUndefined()
     expect(postCalls).toEqual([])
-    expect(getCalls.map(call => new URL(call.url).pathname)).toEqual([
-      '/api/oauth/ncode/roles',
-    ])
+    expect(getCalls).toEqual([])
   })
 
   it('uses explicit console mode even when scopes include user:inference', async () => {
@@ -212,13 +204,10 @@ describe('installOAuthTokens', () => {
       accountUuid: 'acct-1',
       emailAddress: 'dev@noumena.com',
       organizationUuid: 'org-1',
-      displayName: 'Dev',
-      hasExtraUsageEnabled: false,
-      accountCreatedAt: '2026-04-14T00:00:00.000Z',
+      organizationRole: 'owner',
+      workspaceRole: 'admin',
+      organizationName: 'Acme',
     })
-    expect(getGlobalConfig().claudeCodeFirstTokenDate).toBe(
-      '2026-01-02T00:00:00.000Z',
-    )
     expect(getGlobalConfig().primaryApiKey).toBe('sk-test')
     expect(getSecureStorage().read()?.claudeAiOauth).toMatchObject({
       accessToken: 'access-token',
@@ -236,18 +225,13 @@ describe('installOAuthTokens', () => {
   it('keeps auto mode scope-derived for compatibility', async () => {
     await installOAuthTokens(makeTokens(['user:inference']))
 
-    expect(getGlobalConfig().claudeCodeFirstTokenDate).toBe(
-      '2026-01-02T00:00:00.000Z',
-    )
     expect(getGlobalConfig().primaryApiKey).toBeUndefined()
     expect(getSecureStorage().read()?.claudeAiOauth).toMatchObject({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
       scopes: ['user:inference'],
     })
-    expect(getCalls.map(call => new URL(call.url).pathname)).toEqual([
-      '/api/oauth/ncode/roles',
-    ])
+    expect(getCalls).toEqual([])
     expect(postCalls).toEqual([])
   })
 
@@ -284,25 +268,29 @@ describe('installOAuthTokens', () => {
 
 describe('authLogin', () => {
   it('rejects conflicting console and managed flags', async () => {
-    const stderr: string[] = []
-    process.stderr.write = ((chunk: string | Uint8Array) => {
-      stderr.push(String(chunk))
-      return true
-    }) as typeof process.stderr.write
+    const errors: string[] = []
+    const originalConsoleError = console.error
+    console.error = ((...args: unknown[]) => {
+      errors.push(args.map(String).join(' '))
+    }) as typeof console.error
 
     process.exit = ((code?: number) => {
       throw new Error(`exit:${code ?? 0}`)
     }) as typeof process.exit
 
-    await expect(
-      authLogin({
-        console: true,
-        managed: true,
-      }),
-    ).rejects.toThrow('exit:1')
-    expect(stderr.join('') || 'Error: --console and --managed cannot be used together.').toContain(
-      '--console and --managed cannot be used together.',
-    )
+    try {
+      await expect(
+        authLogin({
+          console: true,
+          managed: true,
+        }),
+      ).rejects.toThrow('exit:1')
+      expect(errors.join('')).toContain(
+        'Error: --console and --managed cannot be used together.',
+      )
+    } finally {
+      console.error = originalConsoleError
+    }
   })
 })
 
