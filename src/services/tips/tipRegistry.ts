@@ -393,7 +393,7 @@ const externalTips: Tip[] = [
   {
     id: 'custom-commands',
     content: async () =>
-      'Create skills by adding .md files to .ncode/skills/ in your project or ~/.ncode/skills/ for skills that work in any project',
+      'Create skills by adding .md files to .ncode/skills/ or .agents/skills/ in your project or ~/.ncode/skills/ or ~/.agents/skills/ for skills that work in any project',
     cooldownSessions: 15,
     async isRelevant() {
       const config = getGlobalConfig()

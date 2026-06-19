@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useMemo } from 'react';
 import { type Command, type CommandBase, type CommandResultDisplay, getCommandName, type PromptCommand } from '../../commands.js';
 import { Box, Text } from '../../ink.js';
-import { estimateSkillFrontmatterTokens, getSkillsPath } from '../../skills/loadSkillsDir.js';
+import { estimateSkillFrontmatterTokens, getSkillDirectoryPaths } from '../../skills/loadSkillsDir.js';
 import { getDisplayPath } from '../../utils/file.js';
 import { formatTokens } from '../../utils/format.js';
 import { getSettingSourceName, type SettingSource } from '../../utils/settings/constants.js';
@@ -40,9 +40,17 @@ function getSourceSubtitle(source: SkillSource, skills: SkillCommand[]): string 
     }).filter((n): n is string => n != null))];
     return servers.length > 0 ? servers.join(', ') : undefined;
   }
-  const skillsPath = getDisplayPath(getSkillsPath(source, 'skills'));
+  const skillsPath = getSkillDirectoryPaths(source, 'skills')
+    .map(getDisplayPath)
+    .join(', ');
   const hasCommandsSkills = skills.some(s => s.loadedFrom === 'commands_DEPRECATED');
-  return hasCommandsSkills ? `${skillsPath}, ${getDisplayPath(getSkillsPath(source, 'commands'))}` : skillsPath;
+  if (!hasCommandsSkills) {
+    return skillsPath;
+  }
+  const commandsPath = getSkillDirectoryPaths(source, 'commands')
+    .map(getDisplayPath)
+    .join(', ');
+  return `${skillsPath}, ${commandsPath}`;
 }
 export function SkillsMenu(t0) {
   const $ = _c(35);

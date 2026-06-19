@@ -18,6 +18,7 @@ describe('sandbox-adapter canonical ncode protections', () => {
     expect(getProtectedSkillsPathsForCwd('/repo')).toEqual([
       '/repo/.ncode/skills',
       '/repo/.claude/skills',
+      '/repo/.agents/skills',
     ])
   })
 })

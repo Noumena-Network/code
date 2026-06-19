@@ -21,6 +21,7 @@ import { executeConfigChangeHooks, hasBlockingResult } from '../hooks.js'
 import { createSignal } from '../signal.js'
 import {
   getCanonicalNcodeConfigHomeDir,
+  getCompatibilityAgentsConfigHomeDir,
   getLegacyClaudeConfigHomeDir,
 } from '../envUtils.js'
 
@@ -175,6 +176,7 @@ export function getAdditionalSkillWatchPaths(dir: string): string[] {
   return [
     platformPath.join(dir, '.ncode', 'skills'),
     platformPath.join(dir, '.claude', 'skills'),
+    platformPath.join(dir, '.agents', 'skills'),
   ]
 }
 
@@ -182,11 +184,16 @@ function getUserSkillWatchPaths(dir: 'skills' | 'commands'): string[] {
   return [
     platformPath.join(getCanonicalNcodeConfigHomeDir(), dir),
     platformPath.join(getLegacyClaudeConfigHomeDir(), dir),
+    platformPath.join(getCompatibilityAgentsConfigHomeDir(), dir),
   ]
 }
 
 function getProjectSkillWatchPaths(dir: 'skills' | 'commands'): string[] {
-  return [platformPath.resolve(`.ncode/${dir}`), platformPath.resolve(`.claude/${dir}`)]
+  return [
+    platformPath.resolve(`.ncode/${dir}`),
+    platformPath.resolve(`.claude/${dir}`),
+    platformPath.resolve(`.agents/${dir}`),
+  ]
 }
 
 async function getWatchablePaths(): Promise<string[]> {

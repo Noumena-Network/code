@@ -24,6 +24,10 @@ export const getCanonicalNcodeConfigHomeDir = memoize(
   () => process.env.NCODE_CONFIG_DIR,
 )
 
+export function getCompatibilityAgentsConfigHomeDir(): string {
+  return join(homedir(), '.agents').normalize('NFC')
+}
+
 // Memoized: 150+ callers, many on hot paths. Keyed off NCODE_CONFIG_DIR and
 // CLAUDE_CONFIG_DIR so tests that change either env var get a fresh value
 // without explicit cache.clear. This remains the compatibility-aware helper:

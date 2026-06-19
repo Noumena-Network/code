@@ -19,7 +19,10 @@ import { checkStatsigFeatureGate_CACHED_MAY_BE_STALE } from '../../services/anal
 import type { AnyObject, Tool, ToolPermissionContext } from '../../Tool.js'
 import { FILE_READ_TOOL_NAME } from '../../tools/FileReadTool/prompt.js'
 import { getCwd } from '../cwd.js'
-import { getClaudeConfigHomeDir } from '../envUtils.js'
+import {
+  getClaudeConfigHomeDir,
+  getCompatibilityAgentsConfigHomeDir,
+} from '../envUtils.js'
 import {
   getFsImplementation,
   getPathsForPermissionCheck,
@@ -95,8 +98,8 @@ export function normalizeCaseForComparison(path: string): string {
 }
 
 /**
- * If filePath is inside a managed skills directory (.ncode/skills/{name}/ or
- * legacy .claude/skills/{name}/, project or global),
+ * If filePath is inside a managed skills directory (.ncode/skills/{name}/,
+ * legacy .claude/skills/{name}/, or .agents/skills/{name}/, project or global),
  * return the skill name and a session-allow pattern scoped to just that skill.
  * Used to offer a narrower "allow edits to this skill only" option in the
  * permission dialog and SDK suggestions, so iterating on one skill doesn't
@@ -119,12 +122,20 @@ export function getNcodeSkillScope(
       prefix: '/.claude/skills/',
     },
     {
+      dir: expandPath(join(getOriginalCwd(), '.agents', 'skills')),
+      prefix: '/.agents/skills/',
+    },
+    {
       dir: expandPath(join(homedir(), '.ncode', 'skills')),
       prefix: '~/.ncode/skills/',
     },
     {
       dir: expandPath(join(homedir(), '.claude', 'skills')),
       prefix: '~/.claude/skills/',
+    },
+    {
+      dir: expandPath(join(getCompatibilityAgentsConfigHomeDir(), 'skills')),
+      prefix: '~/.agents/skills/',
     },
   ]
 
@@ -246,7 +257,7 @@ function isNcodeConfigFilePath(filePath: string): boolean {
   // Check if file is within managed commands/agents/skills directories
   // using proper path segment validation (not string matching with includes())
   // pathInWorkingPath now handles case-insensitive comparison to prevent bypasses
-  const configDirs = [join(getOriginalCwd(), '.ncode', 'commands'), join(getOriginalCwd(), '.ncode', 'agents'), join(getOriginalCwd(), '.ncode', 'skills'), join(getOriginalCwd(), '.claude', 'commands'), join(getOriginalCwd(), '.claude', 'agents'), join(getOriginalCwd(), '.claude', 'skills')]
+  const configDirs = [join(getOriginalCwd(), '.ncode', 'commands'), join(getOriginalCwd(), '.ncode', 'agents'), join(getOriginalCwd(), '.ncode', 'skills'), join(getOriginalCwd(), '.claude', 'commands'), join(getOriginalCwd(), '.claude', 'agents'), join(getOriginalCwd(), '.claude', 'skills'), join(getOriginalCwd(), '.agents', 'skills')]
 
   return configDirs.some(configDir => pathInWorkingPath(filePath, configDir))
 }

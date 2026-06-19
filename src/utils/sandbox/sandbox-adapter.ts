@@ -158,6 +158,7 @@ export function getProtectedSkillsPathsForCwd(cwd: string): string[] {
   return [
     resolve(cwd, '.ncode', 'skills'),
     resolve(cwd, '.claude', 'skills'),
+    resolve(cwd, '.agents', 'skills'),
   ]
 }
 
@@ -259,8 +260,8 @@ export function convertToSandboxRuntimeConfig(
     denyWrite.push(...getProtectedSettingsPathsForCwd(cwd))
   }
 
-  // Block writes to canonical .ncode/skills and legacy .claude/skills in both
-  // original and current working directories. The sandbox-runtime's
+  // Block writes to canonical .ncode/skills, legacy .claude/skills, and
+  // .agents/skills in both original and current working directories. The sandbox-runtime's
   // getDangerousDirectories() protects commands and agents but not skills.
   // Skills have the same privilege level (auto-discovered, auto-loaded, full
   // tool capabilities) so they need the same OS-level sandbox protection.

@@ -7,6 +7,7 @@ describe('skillChangeDetector managed path coverage', () => {
     expect(getAdditionalSkillWatchPaths('/repo')).toEqual([
       join('/repo', '.ncode', 'skills'),
       join('/repo', '.claude', 'skills'),
+      join('/repo', '.agents', 'skills'),
     ])
   })
 })

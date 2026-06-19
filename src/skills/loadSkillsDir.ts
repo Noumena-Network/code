@@ -30,6 +30,7 @@ import {
   parseEffortValue,
 } from '../utils/effort.js'
 import {
+  getCompatibilityAgentsConfigHomeDir,
   getClaudeConfigHomeDir,
   isBareMode,
   isEnvTruthy,
@@ -74,28 +75,54 @@ export type LoadedFrom =
   | 'mcp'
 
 /**
- * Returns a claude config directory path for a given source.
+ * Returns user-global skill directories in load/display order.
  */
-export function getSkillsPath(
+function getUserSkillDirs(): string[] {
+  return [
+    join(getClaudeConfigHomeDir(), 'skills'),
+    join(getCompatibilityAgentsConfigHomeDir(), 'skills'),
+  ]
+}
+
+/**
+ * Returns configured skill or command directory paths for a settings source.
+ */
+export function getSkillDirectoryPaths(
   source: SettingSource | 'plugin',
   dir: 'skills' | 'commands',
-): string {
+): string[] {
   switch (source) {
     case 'policySettings':
-      return join(getManagedFilePath(), '.ncode', dir)
+      if (dir === 'skills') {
+        return [
+          join(getManagedFilePath(), '.ncode', dir),
+          join(getManagedFilePath(), '.agents', dir),
+        ]
+      }
+      return [join(getManagedFilePath(), '.ncode', dir)]
     case 'userSettings':
-      return join(getClaudeConfigHomeDir(), dir)
+      if (dir === 'skills') {
+        return getUserSkillDirs()
+      }
+      return [join(getClaudeConfigHomeDir(), dir)]
     case 'projectSettings':
-      return `.ncode/${dir}`
+      if (dir === 'skills') {
+        return [`.ncode/${dir}`, `.agents/${dir}`]
+      }
+      return [`.ncode/${dir}`]
     case 'plugin':
-      return 'plugin'
+      return ['plugin']
     default:
-      return ''
+      return []
   }
 }
 
 function getAdditionalManagedSkillDirs(dir: string): string[] {
-  return [join(dir, '.ncode', 'skills'), join(dir, '.claude', 'skills')]
+  return [
+    join(dir, '.ncode', 'skills'),
+    join(dir, '.claude', 'skills'),
+    join(dir, '.agents', 'skills'),
+  ]
 }
 
 /**
@@ -642,7 +669,7 @@ async function loadSkillsFromCommandsDir(
  */
 export const getSkillDirCommands = memoize(
   async (cwd: string): Promise<Command[]> => {
-    const userSkillsDir = join(getClaudeConfigHomeDir(), 'skills')
+    const userSkillsDirs = getUserSkillDirs()
     const managedSkillsDirs = getExistingProjectOrManagedDirs(
       getManagedFilePath(),
       'skills',
@@ -650,7 +677,7 @@ export const getSkillDirCommands = memoize(
     const projectSkillsDirs = getProjectDirsUpToHome('skills', cwd)
 
     logForDebugging(
-      `Loading skills from: managed=[${managedSkillsDirs.join(', ')}], user=${userSkillsDir}, project=[${projectSkillsDirs.join(', ')}]`,
+      `Loading skills from: managed=[${managedSkillsDirs.join(', ')}], user=[${userSkillsDirs.join(', ')}], project=[${projectSkillsDirs.join(', ')}]`,
     )
 
     // Load from additional directories (--add-dir)
@@ -698,7 +725,11 @@ export const getSkillDirCommands = memoize(
             ),
           ).then(results => results.flat()),
       isSettingSourceEnabled('userSettings') && !skillsLocked
-        ? loadSkillsFromSkillsDir(userSkillsDir, 'userSettings')
+        ? Promise.all(
+            userSkillsDirs.map(userSkillsDir =>
+              loadSkillsFromSkillsDir(userSkillsDir, 'userSettings'),
+            ),
+          ).then(results => results.flat())
         : Promise.resolve([]),
       projectSettingsEnabled
         ? Promise.all(

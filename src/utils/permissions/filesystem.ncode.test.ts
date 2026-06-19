@@ -18,4 +18,15 @@ describe('managed config canonical .ncode paths', () => {
       pattern: '/.ncode/skills/verify/**',
     })
   })
+
+  test('creates narrowed skill scope suggestions for .agents skills', () => {
+    expect(
+      getNcodeSkillScope(
+        `${getOriginalCwd()}/.agents/skills/verify/SKILL.md`,
+      ),
+    ).toEqual({
+      skillName: 'verify',
+      pattern: '/.agents/skills/verify/**',
+    })
+  })
 })

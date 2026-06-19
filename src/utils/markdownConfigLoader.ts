@@ -67,6 +67,9 @@ export function getExistingProjectOrManagedDirs(
   const dirs: string[] = []
   pushIfExistingDir(dirs, join(root, '.claude', subdir))
   pushIfExistingDir(dirs, join(root, '.ncode', subdir))
+  if (subdir === 'skills') {
+    pushIfExistingDir(dirs, join(root, '.agents', subdir))
+  }
   return dirs
 }
 
