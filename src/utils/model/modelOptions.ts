@@ -15,7 +15,7 @@ import {
   getNCodeManagedModelOptions,
   resolveNCodeManagedModel,
 } from './ncodeModels.js'
-import { getAPIProvider, getNoumenaBaseUrl } from './providers.js'
+import { getAPIProvider, getNoumenaBaseUrl, loadUserProviders } from './providers.js'
 import { isModelAllowed } from './modelAllowlist.js'
 import {
   getCanonicalName,
@@ -41,10 +41,40 @@ export type ModelOption = {
   label: string
   description: string
   descriptionForModel?: string
+  /**
+   * Owning BYOK provider entry name when this option comes from a registry
+   * entry (see docs/design/PROVIDERS_REGISTRY.md). Undefined for managed
+   * catalog entries. Informational — the resolver in providers.ts keys off
+   * the model ID, not this field.
+   */
+  provider?: string
 }
 
 function hasEnvValue(value: string | undefined): boolean {
   return Boolean(value?.trim())
+}
+
+/**
+ * Build picker entries for every model declared in the operator's BYOK
+ * provider registry (see docs/design/PROVIDERS_REGISTRY.md). Each entry is
+ * tagged with its owning provider name for display/disambiguation.
+ * Returns [] when the registry is empty.
+ */
+function getUserProviderModelOptions(): ModelOption[] {
+  const providers = loadUserProviders()
+  const options: ModelOption[] = []
+  for (const provider of providers) {
+    for (const model of provider.models) {
+      options.push({
+        value: model.id,
+        label: model.label,
+        description: model.description ?? `${provider.name} (${model.id})`,
+        descriptionForModel: `${model.label} (${model.id})`,
+        provider: provider.name,
+      })
+    }
+  }
+  return options
 }
 
 function isNCodeManagedFirstPartySurface(): boolean {
@@ -306,6 +336,33 @@ function getOpusPlanOption(): ModelOption {
 // @[MODEL LAUNCH]: Update the model picker lists below to include/reorder options for the new model.
 // Each user tier (ant, Max/Team Premium, Pro/Team Standard/Enterprise, PAYG 1P, PAYG 3P) has its own list.
 function getModelOptionsBase(fastMode = false): ModelOption[] {
+  const session = getCurrentSubscriptionSessionState()
+
+  // BYOK provider registry (docs/design/PROVIDERS_REGISTRY.md): when the
+  // operator has declared providers in .ncode/settings.json, surface all
+  // their models in the picker alongside the managed catalog. Returning
+  // early here would hide managed entries, so we *append* registry entries
+  // to the existing branches by falling through after the dispatch below.
+  const userProviderOptions = getUserProviderModelOptions()
+
+  if (userProviderOptions.length > 0) {
+    // Build the existing default + managed options first, then append the
+    // registry entries. Each branch below constructs the base options list;
+    // we delegate to the existing dispatch and append at the end.
+    const baseOptions = getModelOptionsBaseExcludingRegistry(fastMode)
+    return dedupeModelOptions([...baseOptions, ...userProviderOptions])
+  }
+
+  return getModelOptionsBaseExcludingRegistry(fastMode)
+}
+
+/**
+ * The original getModelOptionsBase body, renamed so getModelOptionsBase can
+ * wrap it with registry-appending behavior. Returns the default + managed
+ * catalog options without any BYOK registry entries. Called directly when
+ * the registry is empty (preserving today's behavior exactly).
+ */
+function getModelOptionsBaseExcludingRegistry(fastMode = false): ModelOption[] {
   const session = getCurrentSubscriptionSessionState()
 
   if (isInternalBuild()) {
