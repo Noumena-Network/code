@@ -1,7 +1,10 @@
 import type { ModelName } from './model.js'
 import type { APIProvider } from './providers.js'
 
-export type ModelConfig = Record<APIProvider, ModelName>
+// Custom providers are passthrough — they use raw model names from the
+// provider's API rather than the Claude model catalog. Exclude 'custom'
+// from the required keys so model config objects don't need empty entries.
+export type ModelConfig = Record<Exclude<APIProvider, 'custom'>, ModelName>
 
 // @[MODEL LAUNCH]: Add a new CLAUDE_*_CONFIG constant here. Double check the correct model strings
 // here since the pattern may change.
