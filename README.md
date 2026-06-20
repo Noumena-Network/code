@@ -65,52 +65,45 @@ Recognized Kimi aliases include `kimi-2.7-coder`, `k2.7`, `kimi-2.7`, and `kimi 
 Recognized GLM aliases include `glm-5.2`, `glm52`, `glm 5.2`, `glm-5.2-fp8`, and `glm52-fp8`.
 You can also set `NOUMENA_MODEL=kimi-2.7-coder` or `NOUMENA_MODEL=glm-5.2` in your environment.
 
-## Custom Providers (BYOK)
+## Multi-Provider Registry (BYOK)
 
-ncode supports any OpenAI-compatible API endpoint via the `custom` provider. This lets you use your own API key with providers like DeepSeek, Fireworks, Together, or any self-hosted vLLM/OpenAI-compatible server.
+ncode supports bringing your own OpenAI-compatible API keys for providers like DeepSeek, OpenRouter, Fireworks, Together, or any self-hosted vLLM/OpenAI-compatible server. Declare providers in `~/.ncode/settings.json` (user-global) or `.ncode/settings.json` (per-project — checked into your repo so teammates inherit the same model menu):
 
-Enable it with three environment variables:
-
-```bash
-NCODE_USE_CUSTOM_PROVIDER=1 \
-NCODE_CUSTOM_PROVIDER_URL=https://api.deepseek.com \
-NCODE_CUSTOM_PROVIDER_API_KEY=sk-your-deepseek-api-key \
-NCODE_OPENAI_COMPAT_WS_V2=0 \
-NOUMENA_MODEL=deepseek-chat \
-ncode
+```json
+{
+  "providers": [
+    {
+      "name": "deepseek",
+      "base_url": "https://api.deepseek.com",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "models": [
+        { "id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "description": "Reasoning model for complex edits", "supports_thinking": true },
+        { "id": "deepseek-v4-flash", "label": "DeepSeek V4 Flash", "description": "Fast model for sub-agents" }
+      ]
+    },
+    {
+      "name": "openrouter",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "models": [
+        { "id": "anthropic/claude-3.5-sonnet", "label": "Claude 3.5 Sonnet (OpenRouter)" }
+      ]
+    }
+  ]
+}
 ```
 
-Then specify your model with `--model` or set the default:
+Then export the named env vars (`DEEPSEEK_API_KEY`, `OPENROUTER_API_KEY`) in your shell — the key itself is never serialized to settings.
 
-```bash
-# Via flag
-ncode --model deepseek-chat
+With the registry declared, `/model` lists every registered model alongside the Noumena-managed catalog. Selecting any entry switches the active provider, baseURL, and API key for the duration of the session — no relaunch needed.
 
-# Or set a default via env var
-NOUMENA_MODEL=deepseek-chat ncode
-ANTHROPIC_MODEL=deepseek-chat ncode  # legacy fallback
-```
+The provider must expose OpenAI-compatible `/v1/chat/completions` and `/v1/models` endpoints. API keys are sent as `Authorization: Bearer <key>`. The `base_url` must be the API origin only (e.g. `https://api.deepseek.com`) — do not include `/v1`, ncode appends the correct paths automatically.
 
-The provider must expose OpenAI-compatible `/v1/chat/completions` and `/v1/models` endpoints. API keys are sent as `Authorization: Bearer <key>`. The build mode must be `external` (the default OSS build).
+For best performance with custom providers, disable the Noumena WebSocket transport: `NCODE_OPENAI_COMPAT_WS_V2=0`. This avoids a speculative WebSocket connection attempt (which falls back to standard HTTPS, but adds a small startup delay).
 
-The base URL must be the API origin only (e.g. `https://api.deepseek.com`). Do not include API version path segments like `/v1` — ncode appends the correct paths automatically.
+Claude model aliases (`opus`, `sonnet`, `haiku`) resolve to built-in Claude model IDs and are not usable with BYOK providers — use exact model names from your provider's API. Sub-agents and compaction use the first model you set via `NOUMENA_SMALL_FAST_MODEL` (or `ANTHROPIC_SMALL_FAST_MODEL` as a legacy fallback); set this to a small/fast model your provider offers.
 
-For best performance with custom providers, disable the Noumena WebSocket transport:
-
-```bash
-NCODE_OPENAI_COMPAT_WS_V2=0
-```
-
-This avoids a speculative WebSocket connection attempt (which falls back to standard HTTPS, but adds a small startup delay).
-
-**Sub-agent models**: ncode spawns sub-agents for compaction and parallel work, which use a small/fast model. For custom providers, you must also configure this model explicitly:
-
-```bash
-NOUMENA_SMALL_FAST_MODEL=deepseek-chat
-ANTHROPIC_SMALL_FAST_MODEL=deepseek-chat  # legacy fallback
-```
-
-If not set, sub-agents and compaction will receive a model name that may not be available on your custom provider. Claude model aliases (`opus`, `sonnet`, `haiku`) are not usable with custom providers — use exact model names from your provider's API.
+See `docs/design/PROVIDERS_REGISTRY.md` for the full design and non-goals.
 
 ## Requirements
 
