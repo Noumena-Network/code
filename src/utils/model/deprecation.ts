@@ -22,7 +22,7 @@ type DeprecationEntry = {
   /** Human-readable model name */
   modelName: string
   /** Retirement dates by provider (null = not deprecated for that provider) */
-  retirementDates: Record<APIProvider, string | null>
+  retirementDates: Record<Exclude<APIProvider, 'custom'>, string | null>
 }
 
 /**
@@ -66,9 +66,14 @@ const DEPRECATED_MODELS: Record<string, DeprecationEntry> = {
 function getDeprecatedModelInfo(modelId: string): DeprecationInfo {
   const lowercaseModelId = modelId.toLowerCase()
   const provider = getAPIProvider()
+  // Custom provider has no pre-defined retirement schedule; remap to firstParty
+  // so retirementDates lookups resolve. Custom users see the same deprecation
+  // warnings as firstParty when they use Claude model identifiers.
+  const effectiveProvider: Exclude<APIProvider, 'custom'> =
+    provider === 'custom' ? 'firstParty' : provider
 
   for (const [key, value] of Object.entries(DEPRECATED_MODELS)) {
-    const retirementDate = value.retirementDates[provider]
+    const retirementDate = value.retirementDates[effectiveProvider]
     if (!lowercaseModelId.includes(key) || !retirementDate) {
       continue
     }
