@@ -50,17 +50,20 @@ NOUMENA_OAUTH_WEB_BASE_URL=https://code.noumena.com
 
 ## Model selection
 
-The current OSS build ships the Kimi 2.7 Coder managed model profile as the only public first-party model. You must select it explicitly; ncode does not silently switch your session to a managed model if you have not chosen one.
+The current OSS build ships public first-party managed profiles for Kimi 2.7 Coder and GLM 5.2. You must select one explicitly; ncode does not silently switch your session to a managed model if you have not chosen one.
 
 Use the `--model` flag when starting ncode:
 
 ```bash
 .tmp/packages/ncode-0.1.0-linux-x64/ncode --model kimi-2.7-coder
+.tmp/packages/ncode-0.1.0-linux-x64/ncode --model glm-5.2
 ```
 
-Or run `/model` inside the REPL and pick `Kimi 2.7 Coder`.
+Or run `/model` inside the REPL and pick `Kimi 2.7 Coder` or `GLM 5.2`.
 
-Recognized aliases include `kimi-2.7-coder`, `k2.7`, `kimi-2.7`, and `kimi 2.7 coder`. You can also set `NOUMENA_MODEL=kimi-2.7-coder` in your environment.
+Recognized Kimi aliases include `kimi-2.7-coder`, `k2.7`, `kimi-2.7`, and `kimi 2.7 coder`.
+Recognized GLM aliases include `glm-5.2`, `glm52`, `glm 5.2`, `glm-5.2-fp8`, and `glm52-fp8`.
+You can also set `NOUMENA_MODEL=kimi-2.7-coder` or `NOUMENA_MODEL=glm-5.2` in your environment.
 
 ## Requirements
 

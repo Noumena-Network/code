@@ -35,7 +35,7 @@ const inputSchema = lazySchema(() => {
   const TaskUpdateStatusSchema = TaskStatusSchema().or(z.literal('deleted'))
 
   return z.strictObject({
-    taskId: z.string().describe('The ID of the task to update'),
+    taskId: z.coerce.string().describe('The ID of the task to update'),
     subject: z.string().optional().describe('New subject for the task'),
     description: z.string().optional().describe('New description for the task'),
     activeForm: z

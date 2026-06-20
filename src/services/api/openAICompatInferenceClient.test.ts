@@ -9,7 +9,10 @@ import {
   resolveOpenAICompatBackendCapabilities,
   resolveOpenAICompatRequestPolicy,
 } from './openAICompatInferenceClient.js'
-import { KIMI_2_7_CODER_MODEL } from '../../utils/model/ncodeModels.js'
+import {
+  GLM_5_2_MODEL,
+  KIMI_2_7_CODER_MODEL,
+} from '../../utils/model/ncodeModels.js'
 
 describe('buildOpenAICompatChatRequest', () => {
   it('preserves the caller-visible request information that maps to OpenAI compat', () => {
@@ -321,7 +324,7 @@ describe('buildOpenAICompatChatRequest', () => {
     )
     const policy = resolveOpenAICompatRequestPolicy(
       {
-        model: KIMI_2_7_CODER_MODEL,
+        model: '/data/models/hf/moonshotai__Kimi-K2.5',
         max_tokens: 64,
         thinking: { type: 'enabled', budget_tokens: 1024 },
         messages: [{ role: 'user', content: 'hello' }],
@@ -336,7 +339,7 @@ describe('buildOpenAICompatChatRequest', () => {
 
     const request = buildOpenAICompatChatRequest(
       {
-        model: KIMI_2_7_CODER_MODEL,
+        model: '/data/models/hf/moonshotai__Kimi-K2.5',
         max_tokens: 64,
         thinking: { type: 'enabled', budget_tokens: 1024 },
         messages: [{ role: 'user', content: 'hello' }],
@@ -357,7 +360,7 @@ describe('buildOpenAICompatChatRequest', () => {
   it('keeps reasoning enabled for Kimi models on safe backends', () => {
     const policy = resolveOpenAICompatRequestPolicy(
       {
-        model: KIMI_2_7_CODER_MODEL,
+        model: '/data/models/hf/moonshotai__Kimi-K2.5',
         max_tokens: 64,
         thinking: { type: 'enabled', budget_tokens: 1024 },
         messages: [{ role: 'user', content: 'hello' }],
@@ -369,7 +372,7 @@ describe('buildOpenAICompatChatRequest', () => {
 
     const request = buildOpenAICompatChatRequest(
       {
-        model: KIMI_2_7_CODER_MODEL,
+        model: '/data/models/hf/moonshotai__Kimi-K2.5',
         max_tokens: 64,
         thinking: { type: 'enabled', budget_tokens: 1024 },
         messages: [{ role: 'user', content: 'hello' }],
@@ -1079,17 +1082,18 @@ describe('OpenAICompatInferenceClient', () => {
         },
       },
       {
-        type: 'content_block_delta',
-        index: 2,
-        delta: { type: 'input_json_delta', partial_json: '{"cmd":"p' },
+        type: 'content_block_stop',
+        index: 0,
+      },
+      {
+        type: 'content_block_stop',
+        index: 1,
       },
       {
         type: 'content_block_delta',
         index: 2,
-        delta: { type: 'input_json_delta', partial_json: 'wd"}' },
+        delta: { type: 'input_json_delta', partial_json: '{"cmd":"pwd"}' },
       },
-      { type: 'content_block_stop', index: 0 },
-      { type: 'content_block_stop', index: 1 },
       { type: 'content_block_stop', index: 2 },
       {
         type: 'message_delta',
@@ -1111,6 +1115,365 @@ describe('OpenAICompatInferenceClient', () => {
         },
       },
       { type: 'message_stop' },
+    ])
+  })
+
+  it('normalizes GLM streamed tool argument snapshots into one valid JSON delta', async () => {
+    const sseData = (payload: unknown) => `data: ${JSON.stringify(payload)}\n\n`
+    const finalArguments =
+      '{"command":"find /mlstore/src/noumena/ncode/api -maxdepth 2 -type f | sort","description":"List api crate files"}'
+    const events = [
+      sseData({
+        id: 'chatcmpl-glm-tool',
+        model: GLM_5_2_MODEL,
+        choices: [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }],
+      }),
+      sseData({
+        id: 'chatcmpl-glm-tool',
+        model: GLM_5_2_MODEL,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_glm',
+                  type: 'function',
+                  function: { name: 'Bash' },
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      }),
+      sseData({
+        id: 'chatcmpl-glm-tool',
+        model: GLM_5_2_MODEL,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  function: {
+                    arguments:
+                      '{"command":"find /mlstore/src/noumena/ncode/api -maxdepth 2 -type f | sort"}',
+                  },
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      }),
+      sseData({
+        id: 'chatcmpl-glm-tool',
+        model: GLM_5_2_MODEL,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  function: {
+                    arguments: '"description":"List api crate files"}',
+                  },
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      }),
+      sseData({
+        id: 'chatcmpl-glm-tool',
+        model: GLM_5_2_MODEL,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  function: { arguments: finalArguments },
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      }),
+      sseData({
+        id: 'chatcmpl-glm-tool',
+        model: GLM_5_2_MODEL,
+        choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }],
+      }),
+      'data: [DONE]\n\n',
+    ]
+
+    const stream = new ReadableStream({
+      start(controller) {
+        for (const event of events) {
+          controller.enqueue(new TextEncoder().encode(event))
+        }
+        controller.close()
+      },
+    })
+
+    const client = new OpenAICompatInferenceClient({
+      baseURL: 'http://example.test',
+      fetch: async () => new Response(stream),
+    })
+
+    const operation = client.createMessage({
+      model: GLM_5_2_MODEL,
+      stream: true,
+      max_tokens: 64,
+      messages: [{ role: 'user', content: 'review api' }],
+    } as never)
+
+    const withResponse = await operation.withResponse()
+    const seen: Array<Record<string, unknown>> = []
+    for await (const event of withResponse.data as AsyncIterable<Record<string, unknown>>) {
+      seen.push(event)
+    }
+
+    const argumentDeltas = seen.filter(
+      event =>
+        event.type === 'content_block_delta' &&
+        (event.delta as { type?: string } | undefined)?.type === 'input_json_delta',
+    )
+
+    expect(argumentDeltas).toEqual([
+      {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'input_json_delta', partial_json: finalArguments },
+      },
+    ])
+  })
+
+  it('keeps parallel streamed tool calls separate when backend omits tool indexes', async () => {
+    const sseData = (payload: unknown) => `data: ${JSON.stringify(payload)}\n\n`
+    const events = [
+      sseData({
+        id: 'chatcmpl-glm-parallel-tools',
+        model: GLM_5_2_MODEL,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  id: 'call_bash',
+                  type: 'function',
+                  function: {
+                    name: 'Bash',
+                    arguments: '{"command":"pwd"}',
+                  },
+                },
+                {
+                  id: 'call_read',
+                  type: 'function',
+                  function: {
+                    name: 'Read',
+                    arguments: '{"file_path":"/tmp/example"}',
+                  },
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      }),
+      sseData({
+        id: 'chatcmpl-glm-parallel-tools',
+        model: GLM_5_2_MODEL,
+        choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }],
+      }),
+      'data: [DONE]\n\n',
+    ]
+
+    const stream = new ReadableStream({
+      start(controller) {
+        for (const event of events) {
+          controller.enqueue(new TextEncoder().encode(event))
+        }
+        controller.close()
+      },
+    })
+
+    const client = new OpenAICompatInferenceClient({
+      baseURL: 'http://example.test',
+      fetch: async () => new Response(stream),
+    })
+
+    const operation = client.createMessage({
+      model: GLM_5_2_MODEL,
+      stream: true,
+      max_tokens: 64,
+      messages: [{ role: 'user', content: 'run parallel tools' }],
+    } as never)
+
+    const withResponse = await operation.withResponse()
+    const seen: Array<Record<string, unknown>> = []
+    for await (const event of withResponse.data as AsyncIterable<Record<string, unknown>>) {
+      seen.push(event)
+    }
+
+    expect(
+      seen.filter(event => event.type === 'content_block_start'),
+    ).toEqual([
+      {
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'tool_use',
+          id: 'call_bash',
+          name: 'Bash',
+          input: '',
+        },
+      },
+      {
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'tool_use',
+          id: 'call_read',
+          name: 'Read',
+          input: '',
+        },
+      },
+    ])
+    expect(
+      seen.filter(
+        event =>
+          event.type === 'content_block_delta' &&
+          (event.delta as { type?: string } | undefined)?.type === 'input_json_delta',
+      ),
+    ).toEqual([
+      {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'input_json_delta', partial_json: '{"command":"pwd"}' },
+      },
+      {
+        type: 'content_block_delta',
+        index: 1,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"file_path":"/tmp/example"}',
+        },
+      },
+    ])
+  })
+
+  it('defers streamed tool block start until a late tool name arrives', async () => {
+    const sseData = (payload: unknown) => `data: ${JSON.stringify(payload)}\n\n`
+    const events = [
+      sseData({
+        id: 'chatcmpl-glm-late-name',
+        model: GLM_5_2_MODEL,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  id: 'call_late',
+                  type: 'function',
+                  function: { arguments: '{"command":"pwd"}' },
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      }),
+      sseData({
+        id: 'chatcmpl-glm-late-name',
+        model: GLM_5_2_MODEL,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  id: 'call_late',
+                  type: 'function',
+                  function: { name: 'Bash' },
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      }),
+      sseData({
+        id: 'chatcmpl-glm-late-name',
+        model: GLM_5_2_MODEL,
+        choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }],
+      }),
+      'data: [DONE]\n\n',
+    ]
+
+    const stream = new ReadableStream({
+      start(controller) {
+        for (const event of events) {
+          controller.enqueue(new TextEncoder().encode(event))
+        }
+        controller.close()
+      },
+    })
+
+    const client = new OpenAICompatInferenceClient({
+      baseURL: 'http://example.test',
+      fetch: async () => new Response(stream),
+    })
+
+    const operation = client.createMessage({
+      model: GLM_5_2_MODEL,
+      stream: true,
+      max_tokens: 64,
+      messages: [{ role: 'user', content: 'late name' }],
+    } as never)
+
+    const withResponse = await operation.withResponse()
+    const seen: Array<Record<string, unknown>> = []
+    for await (const event of withResponse.data as AsyncIterable<Record<string, unknown>>) {
+      seen.push(event)
+    }
+
+    expect(
+      seen.filter(event => event.type === 'content_block_start'),
+    ).toEqual([
+      {
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'tool_use',
+          id: 'call_late',
+          name: 'Bash',
+          input: '',
+        },
+      },
+    ])
+    expect(
+      seen.filter(
+        event =>
+          event.type === 'content_block_delta' &&
+          (event.delta as { type?: string } | undefined)?.type === 'input_json_delta',
+      ),
+    ).toEqual([
+      {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'input_json_delta', partial_json: '{"command":"pwd"}' },
+      },
     ])
   })
 
@@ -1469,13 +1832,13 @@ describe('OpenAICompatInferenceClient', () => {
   it('routes chat completions by the actual request model, not the stale client model', async () => {
     const fetchCalls: Array<string> = []
     const client = new OpenAICompatInferenceClient({
-      baseURL: 'https://api.noumena.com',
+      baseURL: 'http://95.133.253.252',
       fetch: async (input, _init) => {
         fetchCalls.push(String(input))
         return new Response(
           JSON.stringify({
             id: 'chatcmpl-route',
-            model: KIMI_2_7_CODER_MODEL,
+            model: '/data/models/hf/moonshotai__Kimi-K2.6',
             choices: [
               {
                 message: {
@@ -1491,26 +1854,28 @@ describe('OpenAICompatInferenceClient', () => {
     })
 
     await client.createMessage({
-      model: KIMI_2_7_CODER_MODEL,
+      model: '/data/models/hf/moonshotai__Kimi-K2.6',
       max_tokens: 8,
       messages: [{ role: 'user', content: 'route' }],
     } as never)
 
     expect(fetchCalls).toEqual([
-      'https://api.noumena.com/v1/chat/completions',
+      'http://95.133.253.252/v1/chat/completions',
     ])
   })
 
   it('normalizes NCode managed model aliases before sending OpenAI-compatible HTTP requests', async () => {
     const bodies: Array<Record<string, unknown>> = []
+    const headers: Headers[] = []
     const client = new OpenAICompatInferenceClient({
       baseURL: 'https://api.noumena.com',
       fetch: async (_input, init) => {
         bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
+        headers.push(new Headers(init?.headers))
         return new Response(
           JSON.stringify({
             id: 'chatcmpl-kimi27',
-            model: KIMI_2_7_CODER_MODEL,
+            model: String(bodies.at(-1)?.model ?? KIMI_2_7_CODER_MODEL),
             choices: [
               {
                 message: {
@@ -1535,7 +1900,16 @@ describe('OpenAICompatInferenceClient', () => {
       messages: [{ role: 'user', content: 'hello' }],
     } as never)
 
+    await client.createMessage({
+      model: 'glm-5.2',
+      max_tokens: 8,
+      messages: [{ role: 'user', content: 'hello' }],
+    } as never)
+
     expect(bodies[0]?.model).toBe(KIMI_2_7_CODER_MODEL)
+    expect(headers[0]?.get('x-noumena-model')).toBe('kimi-k25')
+    expect(bodies[1]?.model).toBe(GLM_5_2_MODEL)
+    expect(headers[1]?.get('x-noumena-model')).toBe('glm52')
   })
 
   it('makes streamed unsafe-backend requests honor the final reasoning policy instead of the raw caller toggle', async () => {
@@ -1543,7 +1917,7 @@ describe('OpenAICompatInferenceClient', () => {
     const events = [
       sseData({
         id: 'chatcmpl-kimi',
-        model: KIMI_2_7_CODER_MODEL,
+        model: '/data/models/hf/moonshotai__Kimi-K2.5',
         choices: [
           {
             index: 0,
@@ -1558,12 +1932,12 @@ describe('OpenAICompatInferenceClient', () => {
       }),
       sseData({
         id: 'chatcmpl-kimi',
-        model: KIMI_2_7_CODER_MODEL,
+        model: '/data/models/hf/moonshotai__Kimi-K2.5',
         choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
       }),
       sseData({
         id: 'chatcmpl-kimi',
-        model: KIMI_2_7_CODER_MODEL,
+        model: '/data/models/hf/moonshotai__Kimi-K2.5',
         choices: [],
         usage: {
           prompt_tokens: 12,
@@ -1585,7 +1959,7 @@ describe('OpenAICompatInferenceClient', () => {
 
     const client = new OpenAICompatInferenceClient({
       baseURL:
-        'https://internal-gateway.invalid',
+        'https://kimi-k25-sglang-gateway.noumena-onecc-mk8s01.clusters.gpus.com',
       backendCapabilities: { reasoningTransport: 'unsafe_visible_content' },
       fetch: async (input, init) => {
         fetchCalls.push({ url: String(input), init })
@@ -1596,7 +1970,7 @@ describe('OpenAICompatInferenceClient', () => {
     })
 
     const operation = client.createMessage({
-      model: KIMI_2_7_CODER_MODEL,
+      model: '/data/models/hf/moonshotai__Kimi-K2.5',
       stream: true,
       max_tokens: 64,
       thinking: { type: 'enabled', budget_tokens: 1024 },
@@ -1640,7 +2014,7 @@ describe('OpenAICompatInferenceClient', () => {
     const events = [
       sseData({
         id: 'chatcmpl-disabled-stream',
-        model: KIMI_2_7_CODER_MODEL,
+        model: '/data/models/hf/moonshotai__Kimi-K2.5',
         choices: [
           {
             index: 0,
@@ -1651,7 +2025,7 @@ describe('OpenAICompatInferenceClient', () => {
       }),
       sseData({
         id: 'chatcmpl-disabled-stream',
-        model: KIMI_2_7_CODER_MODEL,
+        model: '/data/models/hf/moonshotai__Kimi-K2.5',
         choices: [
           {
             index: 0,
@@ -1662,12 +2036,12 @@ describe('OpenAICompatInferenceClient', () => {
       }),
       sseData({
         id: 'chatcmpl-disabled-stream',
-        model: KIMI_2_7_CODER_MODEL,
+        model: '/data/models/hf/moonshotai__Kimi-K2.5',
         choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
       }),
       sseData({
         id: 'chatcmpl-disabled-stream',
-        model: KIMI_2_7_CODER_MODEL,
+        model: '/data/models/hf/moonshotai__Kimi-K2.5',
         choices: [],
         usage: {
           prompt_tokens: 12,
@@ -1688,7 +2062,7 @@ describe('OpenAICompatInferenceClient', () => {
 
     const client = new OpenAICompatInferenceClient({
       baseURL:
-        'https://internal-gateway.invalid',
+        'https://kimi-k25-sglang-gateway.noumena-onecc-mk8s01.clusters.gpus.com',
       backendCapabilities: { reasoningTransport: 'unsafe_visible_content' },
       fetch: async () =>
         new Response(stream, {
@@ -1697,7 +2071,7 @@ describe('OpenAICompatInferenceClient', () => {
     })
 
     const operation = client.createMessage({
-      model: KIMI_2_7_CODER_MODEL,
+      model: '/data/models/hf/moonshotai__Kimi-K2.5',
       stream: true,
       max_tokens: 64,
       thinking: { type: 'enabled', budget_tokens: 1024 },
@@ -1732,7 +2106,7 @@ describe('OpenAICompatInferenceClient', () => {
     const events = [
       sseData({
         id: 'chatcmpl-think-marker-stream',
-        model: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
+        model: '/data/models/hf/moonshotai__Kimi-K2.6',
         choices: [
           {
             index: 0,
@@ -1743,7 +2117,7 @@ describe('OpenAICompatInferenceClient', () => {
       }),
       sseData({
         id: 'chatcmpl-think-marker-stream',
-        model: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
+        model: '/data/models/hf/moonshotai__Kimi-K2.6',
         choices: [
           {
             index: 0,
@@ -1754,7 +2128,7 @@ describe('OpenAICompatInferenceClient', () => {
       }),
       sseData({
         id: 'chatcmpl-think-marker-stream',
-        model: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
+        model: '/data/models/hf/moonshotai__Kimi-K2.6',
         choices: [
           {
             index: 0,
@@ -1765,12 +2139,12 @@ describe('OpenAICompatInferenceClient', () => {
       }),
       sseData({
         id: 'chatcmpl-think-marker-stream',
-        model: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
+        model: '/data/models/hf/moonshotai__Kimi-K2.6',
         choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
       }),
       sseData({
         id: 'chatcmpl-think-marker-stream',
-        model: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
+        model: '/data/models/hf/moonshotai__Kimi-K2.6',
         choices: [],
         usage: {
           prompt_tokens: 12,
@@ -1798,7 +2172,7 @@ describe('OpenAICompatInferenceClient', () => {
     })
 
     const operation = client.createMessage({
-      model: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
+      model: '/data/models/hf/moonshotai__Kimi-K2.6',
       stream: true,
       max_tokens: 64,
       messages: [{ role: 'user', content: 'hello' }],
@@ -1835,7 +2209,7 @@ describe('OpenAICompatInferenceClient', () => {
     const events = [
       sseData({
         id: 'chatcmpl-dup-tail',
-        model: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
+        model: '/data/models/hf/moonshotai__Kimi-K2.6',
         choices: [
           {
             index: 0,
@@ -1846,7 +2220,7 @@ describe('OpenAICompatInferenceClient', () => {
       }),
       sseData({
         id: 'chatcmpl-dup-tail',
-        model: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
+        model: '/data/models/hf/moonshotai__Kimi-K2.6',
         choices: [
           {
             index: 0,
@@ -1857,7 +2231,7 @@ describe('OpenAICompatInferenceClient', () => {
       }),
       sseData({
         id: 'chatcmpl-dup-tail',
-        model: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
+        model: '/data/models/hf/moonshotai__Kimi-K2.6',
         choices: [
           {
             index: 0,
@@ -1868,7 +2242,7 @@ describe('OpenAICompatInferenceClient', () => {
       }),
       sseData({
         id: 'chatcmpl-dup-tail',
-        model: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
+        model: '/data/models/hf/moonshotai__Kimi-K2.6',
         choices: [
           {
             index: 0,
@@ -1879,12 +2253,12 @@ describe('OpenAICompatInferenceClient', () => {
       }),
       sseData({
         id: 'chatcmpl-dup-tail',
-        model: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
+        model: '/data/models/hf/moonshotai__Kimi-K2.6',
         choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
       }),
       sseData({
         id: 'chatcmpl-dup-tail',
-        model: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
+        model: '/data/models/hf/moonshotai__Kimi-K2.6',
         choices: [],
         usage: {
           prompt_tokens: 12,
@@ -1912,7 +2286,7 @@ describe('OpenAICompatInferenceClient', () => {
     })
 
     const operation = client.createMessage({
-      model: '/data/models/hf/moonshotai__Kimi-K2.7-Code',
+      model: '/data/models/hf/moonshotai__Kimi-K2.6',
       stream: true,
       max_tokens: 64,
       messages: [{ role: 'user', content: 'hello' }],
@@ -2460,7 +2834,11 @@ describe('OpenAICompatInferenceClient', () => {
   })
 
   it('normalizes NCode managed model aliases before sending WS v2 requests', async () => {
-    const wsCalls: Array<{ url: string; request: Record<string, unknown> }> = []
+    const wsCalls: Array<{
+      url: string
+      request: Record<string, unknown>
+      headers: Headers
+    }> = []
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(
@@ -2501,6 +2879,7 @@ describe('OpenAICompatInferenceClient', () => {
         wsCalls.push({
           url: args.url,
           request: args.request as Record<string, unknown>,
+          headers: args.headers,
         })
         return new Response(stream, { headers: { 'request-id': 'req-kimi27-ws2' } })
       },
@@ -2520,6 +2899,7 @@ describe('OpenAICompatInferenceClient', () => {
 
     expect(wsCalls[0]?.url).toBe('https://api.noumena.com/v1/chat/completions/ws/v2')
     expect(wsCalls[0]?.request.model).toBe(KIMI_2_7_CODER_MODEL)
+    expect(wsCalls[0]?.headers.get('x-noumena-model')).toBe('kimi-k25')
   })
 
   it('falls back to SSE when WS v2 transport setup fails', async () => {

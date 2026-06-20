@@ -7,6 +7,7 @@ import {
 } from './modelOptions.js'
 import { parseUserSpecifiedModel } from './model.js'
 import {
+  GLM_5_2_MODEL,
   KIMI_2_7_CODER_MODEL,
 } from './ncodeModels.js'
 
@@ -153,6 +154,8 @@ describe('modelOptions auth gating', () => {
         KIMI_2_7_CODER_MODEL,
       )
       expect(parseUserSpecifiedModel('k2.7')).toBe(KIMI_2_7_CODER_MODEL)
+      expect(parseUserSpecifiedModel('glm-5.2')).toBe(GLM_5_2_MODEL)
+      expect(parseUserSpecifiedModel('GLM 5.2')).toBe(GLM_5_2_MODEL)
     })
   })
 

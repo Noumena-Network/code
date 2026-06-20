@@ -232,6 +232,10 @@ function normalizeOpenAICompatModelForAPI(model: string): string {
   return resolveNCodeManagedModel(model)?.model ?? model.replace(/\[(1|2)m\]/gi, '')
 }
 
+function getNoumenaModelRoutingHeader(model: string): string | undefined {
+  return resolveNCodeManagedModel(model)?.routingModel
+}
+
 function getRequestId(response: Response, fallback?: string): string | null {
   return (
     response.headers.get('request-id') ??
@@ -964,6 +968,46 @@ function assertAssistantContentPresent(
   }
 }
 
+function isCompleteJsonObjectString(value: string): boolean {
+  try {
+    const parsed = JSON.parse(value)
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+  } catch {
+    return false
+  }
+}
+
+function mergeToolArgumentChunk(previous: string, next: string): string {
+  if (!previous) {
+    return next
+  }
+  if (next.startsWith(previous)) {
+    return next
+  }
+  if (previous.startsWith(next)) {
+    return previous
+  }
+  if (isCompleteJsonObjectString(next)) {
+    return next
+  }
+  if (isCompleteJsonObjectString(previous)) {
+    return previous
+  }
+  return previous + next
+}
+
+type OpenAIStreamToolCallDelta = NonNullable<
+  NonNullable<OpenAIStreamChunk['choices']>[number]['delta']
+>['tool_calls'][number]
+
+type OpenAIStreamToolState = {
+  contentIndex: number
+  id: string
+  name?: string
+  arguments: string
+  started: boolean
+}
+
 export function mapOpenAIChatCompletionToAnthropicMessage(
   responseBody: OpenAIChatCompletionResponse,
   response: Response,
@@ -1081,7 +1125,11 @@ async function* streamOpenAIChatCompletionAsAnthropicEvents(
   let textValidationBuffer = ''
   let reasoningValidationBuffer = ''
   let lastFlushedTextDelta: string | null = null
-  const openToolIndices = new Map<number, { contentIndex: number; name?: string }>()
+  const openTools = new Map<string, OpenAIStreamToolState>()
+  const toolKeyByIndex = new Map<number, string>()
+  const toolKeyById = new Map<string, string>()
+  const syntheticToolKeyByPosition = new Map<number, string>()
+  let nextSyntheticToolKey = 0
   const stoppedContentIndices = new Set<number>()
 
   const flushTextDelta = function* (
@@ -1143,31 +1191,85 @@ async function* streamOpenAIChatCompletionAsAnthropicEvents(
     } as BetaRawMessageStreamEvent
   }
 
-  const emitToolStartIfNeeded = (
-    toolIndex: number,
-    toolCall: NonNullable<
-      NonNullable<OpenAIStreamChunk['choices']>[number]['delta']
-    >['tool_calls'][number],
-  ): BetaRawMessageStreamEvent | null => {
-    const existing = openToolIndices.get(toolIndex)
+  const resolveToolKey = (
+    toolCall: OpenAIStreamToolCallDelta,
+    position: number,
+  ): string => {
+    if (toolCall.index !== undefined && toolCall.index !== null) {
+      const existing = toolKeyByIndex.get(toolCall.index)
+      if (existing) {
+        if (toolCall.id) {
+          toolKeyById.set(toolCall.id, existing)
+        }
+        return existing
+      }
+      const key = `index:${toolCall.index}`
+      toolKeyByIndex.set(toolCall.index, key)
+      if (toolCall.id) {
+        toolKeyById.set(toolCall.id, key)
+      }
+      return key
+    }
+
+    if (toolCall.id) {
+      const existing = toolKeyById.get(toolCall.id)
+      if (existing) {
+        return existing
+      }
+      const key = `id:${toolCall.id}`
+      toolKeyById.set(toolCall.id, key)
+      return key
+    }
+
+    const existing = syntheticToolKeyByPosition.get(position)
+    if (existing) {
+      return existing
+    }
+    const key = `synthetic:${nextSyntheticToolKey++}`
+    syntheticToolKeyByPosition.set(position, key)
+    return key
+  }
+
+  const ensureToolState = (
+    toolKey: string,
+    toolCall: OpenAIStreamToolCallDelta,
+  ): OpenAIStreamToolState => {
+    const existing = openTools.get(toolKey)
     if (existing) {
       if (!existing.name && toolCall.function?.name) {
         existing.name = toolCall.function.name
       }
+      if (toolCall.id && existing.id.startsWith('generated-')) {
+        existing.id = toolCall.id
+      }
+      return existing
+    }
+
+    const state: OpenAIStreamToolState = {
+      contentIndex: nextIndex++,
+      id: toolCall.id ?? `generated-${randomUUID()}`,
+      name: toolCall.function?.name ?? undefined,
+      arguments: '',
+      started: false,
+    }
+    openTools.set(toolKey, state)
+    return state
+  }
+
+  const emitToolStartIfReady = (
+    state: OpenAIStreamToolState,
+  ): BetaRawMessageStreamEvent | null => {
+    if (state.started || !state.name) {
       return null
     }
-    const contentIndex = nextIndex++
-    openToolIndices.set(toolIndex, {
-      contentIndex,
-      name: toolCall.function?.name ?? undefined,
-    })
+    state.started = true
     return {
       type: 'content_block_start',
-      index: contentIndex,
+      index: state.contentIndex,
       content_block: {
         type: 'tool_use',
-        id: toolCall.id ?? randomUUID(),
-        name: toolCall.function?.name ?? '',
+        id: state.id,
+        name: state.name,
         input: '',
       },
     } as BetaRawMessageStreamEvent
@@ -1268,7 +1370,7 @@ async function* streamOpenAIChatCompletionAsAnthropicEvents(
         }
 
         if (delta.content) {
-          const latestOpenTool = Array.from(openToolIndices.values()).at(-1)
+          const latestOpenTool = Array.from(openTools.values()).at(-1)
           if (latestOpenTool) {
             throw new Error(
               'Malformed streaming tool response leaked content after tool arguments',
@@ -1311,22 +1413,18 @@ async function* streamOpenAIChatCompletionAsAnthropicEvents(
           }
         }
 
-        for (const toolCall of delta.tool_calls ?? []) {
-          const localToolIndex = toolCall.index ?? 0
-          const startEvent = emitToolStartIfNeeded(localToolIndex, toolCall)
+        for (const [position, toolCall] of (delta.tool_calls ?? []).entries()) {
+          const toolKey = resolveToolKey(toolCall, position)
+          const toolState = ensureToolState(toolKey, toolCall)
+          const startEvent = emitToolStartIfReady(toolState)
           if (startEvent) {
             yield startEvent
           }
-          const openTool = openToolIndices.get(localToolIndex)
-          if (openTool && toolCall.function?.arguments) {
-            yield {
-              type: 'content_block_delta',
-              index: openTool.contentIndex,
-              delta: {
-                type: 'input_json_delta',
-                partial_json: toolCall.function.arguments,
-              },
-            } as BetaRawMessageStreamEvent
+          if (toolCall.function?.arguments) {
+            toolState.arguments = mergeToolArgumentChunk(
+              toolState.arguments,
+              toolCall.function.arguments,
+            )
           }
         }
       }
@@ -1351,10 +1449,10 @@ async function* streamOpenAIChatCompletionAsAnthropicEvents(
     throw new Error('OpenAI-compatible stream ended before completion marker')
   }
   if (finalStopReason === null && sawDoneSentinel) {
-    finalStopReason = openToolIndices.size > 0 ? 'tool_use' : 'end_turn'
+    finalStopReason = openTools.size > 0 ? 'tool_use' : 'end_turn'
   }
 
-  if (finalStopReason === 'tool_use' && openToolIndices.size === 0) {
+  if (finalStopReason === 'tool_use' && openTools.size === 0) {
     throw new Error('Malformed streaming tool response missing tool_calls')
   }
 
@@ -1394,7 +1492,24 @@ async function* streamOpenAIChatCompletionAsAnthropicEvents(
       yield stopEvent
     }
   }
-  for (const openTool of openToolIndices.values()) {
+  for (const openTool of openTools.values()) {
+    const startEvent = emitToolStartIfReady(openTool)
+    if (startEvent) {
+      yield startEvent
+    }
+    if (!openTool.started) {
+      throw new Error('Malformed streaming tool response missing tool name')
+    }
+    if (openTool.arguments) {
+      yield {
+        type: 'content_block_delta',
+        index: openTool.contentIndex,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: openTool.arguments,
+        },
+      } as BetaRawMessageStreamEvent
+    }
     const stopEvent = stopContentBlock(openTool.contentIndex)
     if (stopEvent) {
       yield stopEvent
@@ -1486,12 +1601,20 @@ export class OpenAICompatInferenceClient implements InferenceClient {
     for (const [key, value] of new Headers(init?.headers).entries()) {
       headers.set(key, value)
     }
-    const url =
+    const bodyModel =
       typeof body === 'object' &&
       body !== null &&
       'model' in body &&
       typeof body.model === 'string'
-        ? this.buildURLForModel(path, body.model)
+        ? body.model
+        : undefined
+    const routingModel = bodyModel ? getNoumenaModelRoutingHeader(bodyModel) : undefined
+    if (routingModel) {
+      headers.set('x-noumena-model', routingModel)
+    }
+    const url =
+      bodyModel
+        ? this.buildURLForModel(path, bodyModel)
         : this.buildURL(path)
     try {
       return await this.fetchImpl(url, {
@@ -1508,11 +1631,19 @@ export class OpenAICompatInferenceClient implements InferenceClient {
     }
   }
 
-  private buildHeaders(init?: { headers?: HeadersInit }, accept = 'application/json'): Headers {
+  private buildHeaders(
+    init?: { headers?: HeadersInit },
+    accept = 'application/json',
+    model?: string,
+  ): Headers {
     const headers = new Headers(this.options.headers)
     headers.set('accept', accept)
     for (const [key, value] of new Headers(init?.headers).entries()) {
       headers.set(key, value)
+    }
+    const routingModel = model ? getNoumenaModelRoutingHeader(model) : undefined
+    if (routingModel) {
+      headers.set('x-noumena-model', routingModel)
     }
     return headers
   }
@@ -1568,7 +1699,7 @@ export class OpenAICompatInferenceClient implements InferenceClient {
     const responsePromise = wsV2Transport
       ? wsV2Transport({
           url: this.buildURLForModel('/v1/chat/completions/ws/v2', apiModel),
-          headers: this.buildHeaders(requestOptions, 'application/json'),
+          headers: this.buildHeaders(requestOptions, 'application/json', apiModel),
           request,
           signal: requestOptions?.signal,
         }).catch(error => {

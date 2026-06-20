@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { getContextWindowForModel, getModelMaxOutputTokens } from './context.js'
 import {
+  GLM_5_2_MAX_PROMPT_TOKENS,
+  GLM_5_2_MODEL,
   KIMI_2_7_CODER_MODEL,
   NCODE_MANAGED_MODEL_MAX_PROMPT_TOKENS,
   NCODE_MANAGED_MODEL_MAX_SEQUENCE_TOKENS,
@@ -16,6 +18,18 @@ describe('NCode managed model token contracts', () => {
       NCODE_MANAGED_MODEL_MAX_PROMPT_TOKENS,
     )
     expect(NCODE_MANAGED_MODEL_MAX_SEQUENCE_TOKENS).toBe(256_000)
+    expect(getModelMaxOutputTokens(model)).toEqual({
+      default: NCODE_MANAGED_MODEL_MAX_TOKENS,
+      upperLimit: NCODE_MANAGED_MODEL_MAX_TOKENS,
+    })
+  })
+
+  test.each([
+    ['glm alias', 'glm-5.2'],
+    ['glm compact alias', 'glm52'],
+    ['glm model', GLM_5_2_MODEL],
+  ])('%s uses the GLM 5.2 1M prompt budget', (_label, model) => {
+    expect(getContextWindowForModel(model)).toBe(GLM_5_2_MAX_PROMPT_TOKENS)
     expect(getModelMaxOutputTokens(model)).toEqual({
       default: NCODE_MANAGED_MODEL_MAX_TOKENS,
       upperLimit: NCODE_MANAGED_MODEL_MAX_TOKENS,

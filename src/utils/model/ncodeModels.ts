@@ -4,6 +4,7 @@ export type NCodeManagedModelProfile = {
   primaryAlias: string
   aliases: readonly string[]
   model: string
+  routingModel: string
   label: string
   description: string
   defaultEffortLevel: EffortLevel
@@ -22,6 +23,8 @@ export const NCODE_MANAGED_MODEL_MAX_SEQUENCE_TOKENS = 256_000
 export const NCODE_MANAGED_MODEL_MAX_TOKENS = 256_000
 export const KIMI_2_7_CODER_BASE_URL = 'https://api.noumena.com'
 export const KIMI_2_7_CODER_MODEL = '/data/models/hf/moonshotai__Kimi-K2.7-Code'
+export const GLM_5_2_MODEL = '/data/models/hf/zai-org__GLM-5.2-FP8'
+export const GLM_5_2_MAX_PROMPT_TOKENS = 1_000_000
 
 // K2.6 is internal-only and not available in public/OSS builds. Keep both the
 // model identifier and base URL out of the public profile list; configure them
@@ -38,11 +41,32 @@ export const NCODE_MANAGED_MODEL_PROFILES = [
       'kimi-coder',
     ] as const,
     model: KIMI_2_7_CODER_MODEL,
+    routingModel: 'kimi-k25',
     label: 'Kimi 2.7 Coder',
     description: 'Production coding model with thinking support',
     defaultEffortLevel: 'high',
     supportsMaxEffort: false,
     contextWindow: NCODE_MANAGED_MODEL_MAX_PROMPT_TOKENS,
+    defaultMaxTokens: NCODE_MANAGED_MODEL_MAX_TOKENS,
+    upperMaxTokensLimit: NCODE_MANAGED_MODEL_MAX_TOKENS,
+    baseUrl: KIMI_2_7_CODER_BASE_URL,
+  },
+  {
+    primaryAlias: 'glm-5.2',
+    aliases: [
+      'glm52',
+      'glm-5.2',
+      'glm 5.2',
+      'glm-5.2-fp8',
+      'glm52-fp8',
+    ] as const,
+    model: GLM_5_2_MODEL,
+    routingModel: 'glm52',
+    label: 'GLM 5.2',
+    description: 'Production GLM 5.2 coding model',
+    defaultEffortLevel: 'high',
+    supportsMaxEffort: false,
+    contextWindow: GLM_5_2_MAX_PROMPT_TOKENS,
     defaultMaxTokens: NCODE_MANAGED_MODEL_MAX_TOKENS,
     upperMaxTokensLimit: NCODE_MANAGED_MODEL_MAX_TOKENS,
     baseUrl: KIMI_2_7_CODER_BASE_URL,
