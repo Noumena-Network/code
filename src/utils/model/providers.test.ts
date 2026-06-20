@@ -2,8 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import {
   getAnthropicBaseUrl,
   getAPIProvider,
-  getCustomProviderApiKey,
-  getCustomProviderBaseUrl,
   getFirstPartyBaseUrlOverride,
   getNoumenaBaseUrl,
   isFirstPartyNoumenaBaseUrl,
@@ -13,9 +11,6 @@ function resetEnv() {
   delete process.env.NOUMENA_BASE_URL
   delete process.env.ANTHROPIC_BASE_URL
   delete process.env.USER_TYPE
-  delete process.env.NCODE_USE_CUSTOM_PROVIDER
-  delete process.env.NCODE_CUSTOM_PROVIDER_URL
-  delete process.env.NCODE_CUSTOM_PROVIDER_API_KEY
   delete process.env.CLAUDE_CODE_USE_BEDROCK
   delete process.env.CLAUDE_CODE_USE_VERTEX
   delete process.env.CLAUDE_CODE_USE_FOUNDRY
@@ -72,70 +67,15 @@ describe('providers', () => {
     process.env.ANTHROPIC_BASE_URL = 'https://api-staging.anthropic.com'
     expect(isFirstPartyNoumenaBaseUrl()).toBe(true)
   })
-})
 
-describe('custom provider', () => {
-  it('returns firstParty when custom provider is not enabled', () => {
+  it('returns firstParty when no provider env vars are set', () => {
     expect(getAPIProvider()).toBe('firstParty')
   })
 
-  it('returns custom when NCODE_USE_CUSTOM_PROVIDER is set but URL and key are missing', () => {
-    process.env.NCODE_USE_CUSTOM_PROVIDER = '1'
-    expect(getAPIProvider()).toBe('custom')
-  })
-
-  it('returns custom when URL is set but key is missing', () => {
-    process.env.NCODE_USE_CUSTOM_PROVIDER = '1'
-    process.env.NCODE_CUSTOM_PROVIDER_URL = 'https://api.deepseek.com'
-    expect(getAPIProvider()).toBe('custom')
-  })
-
-  it('returns custom when key is set but URL is missing', () => {
-    process.env.NCODE_USE_CUSTOM_PROVIDER = '1'
-    process.env.NCODE_CUSTOM_PROVIDER_API_KEY = 'sk-test'
-    expect(getAPIProvider()).toBe('custom')
-  })
-
-  it('returns custom when all three env vars are set', () => {
-    process.env.NCODE_USE_CUSTOM_PROVIDER = '1'
-    process.env.NCODE_CUSTOM_PROVIDER_URL = 'https://api.deepseek.com'
-    process.env.NCODE_CUSTOM_PROVIDER_API_KEY = 'sk-test'
-    expect(getAPIProvider()).toBe('custom')
-  })
-
-  it('normalizes whitespace in URL', () => {
-    process.env.NCODE_USE_CUSTOM_PROVIDER = '1'
-    process.env.NCODE_CUSTOM_PROVIDER_URL = '  https://api.deepseek.com  '
-    process.env.NCODE_CUSTOM_PROVIDER_API_KEY = 'sk-test'
-    expect(getCustomProviderBaseUrl()).toBe('https://api.deepseek.com')
-  })
-
-  it('returns undefined for whitespace-only API key but provider still custom', () => {
-    process.env.NCODE_USE_CUSTOM_PROVIDER = '1'
-    process.env.NCODE_CUSTOM_PROVIDER_URL = 'https://api.deepseek.com'
-    process.env.NCODE_CUSTOM_PROVIDER_API_KEY = '   '
-    expect(getAPIProvider()).toBe('custom')
-    expect(getCustomProviderApiKey()).toBeUndefined()
-  })
-
-  it('returns undefined for missing API key', () => {
-    expect(getCustomProviderApiKey()).toBeUndefined()
-  })
-
-  it('returns undefined for missing base URL', () => {
-    expect(getCustomProviderBaseUrl()).toBeUndefined()
-  })
-
-  it('returns empty key as undefined', () => {
-    process.env.NCODE_CUSTOM_PROVIDER_API_KEY = ''
-    expect(getCustomProviderApiKey()).toBeUndefined()
-  })
-
-  it('bedrock takes priority over custom provider', () => {
-    process.env.NCODE_USE_CUSTOM_PROVIDER = '1'
-    process.env.NCODE_CUSTOM_PROVIDER_URL = 'https://api.deepseek.com'
-    process.env.NCODE_CUSTOM_PROVIDER_API_KEY = 'sk-test'
+  it('bedrock takes priority over vertex and foundry', () => {
     process.env.CLAUDE_CODE_USE_BEDROCK = '1'
+    process.env.CLAUDE_CODE_USE_VERTEX = '1'
+    process.env.CLAUDE_CODE_USE_FOUNDRY = '1'
     expect(getAPIProvider()).toBe('bedrock')
   })
 })
