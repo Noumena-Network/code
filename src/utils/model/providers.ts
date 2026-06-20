@@ -1,7 +1,9 @@
 import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from '../../services/analytics/index.js'
 import { isEnvTruthy } from '../envUtils.js'
+import { getSettingsWithErrors } from '../settings/settings.js'
+import type { UserProvider } from '../settings/types.js'
 
-export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 'foundry' | 'custom'
+export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 'foundry'
 
 const FIRST_PARTY_NOUMENA_HOSTS = [
   'api.noumena.com',
@@ -26,10 +28,6 @@ export function getFirstPartyBaseUrlOverride(): string | undefined {
   return getNoumenaBaseUrl() ?? getAnthropicBaseUrl()
 }
 
-const NCODE_USE_CUSTOM_PROVIDER = 'NCODE_USE_CUSTOM_PROVIDER'
-const NCODE_CUSTOM_PROVIDER_URL = 'NCODE_CUSTOM_PROVIDER_URL'
-const NCODE_CUSTOM_PROVIDER_API_KEY = 'NCODE_CUSTOM_PROVIDER_API_KEY'
-
 export function getAPIProvider(): APIProvider {
   return isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)
     ? 'bedrock'
@@ -37,37 +35,7 @@ export function getAPIProvider(): APIProvider {
       ? 'vertex'
       : isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
         ? 'foundry'
-        : isCustomProviderEnabled()
-          ? 'custom'
-          : 'firstParty'
-}
-
-/**
- * Returns true when the operator has explicitly opted into the custom
- * provider via NCODE_USE_CUSTOM_PROVIDER. Does not validate credentials —
- * the credential check lives in inferenceClient where missing URL/key
- * produce a clear error rather than a silent fallthrough to firstParty.
- */
-function isCustomProviderEnabled(): boolean {
-  return isEnvTruthy(process.env[NCODE_USE_CUSTOM_PROVIDER])
-}
-
-/**
- * The OpenAI-compatible base URL configured for the custom provider
- * (e.g. https://api.deepseek.com). Returns undefined when not set or
- * empty.
- */
-export function getCustomProviderBaseUrl(): string | undefined {
-  return normalizeBaseUrl(process.env[NCODE_CUSTOM_PROVIDER_URL])
-}
-
-/**
- * The API key for the custom provider. Sent as Authorization: Bearer <key>
- * to the OpenAI-compatible endpoint. Returns undefined when not set or
- * empty.
- */
-export function getCustomProviderApiKey(): string | undefined {
-  return process.env[NCODE_CUSTOM_PROVIDER_API_KEY]?.trim() || undefined
+        : 'firstParty'
 }
 
 export function getAPIProviderForStatsig(): AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS {
@@ -122,4 +90,73 @@ export function isFirstPartyNoumenaBaseUrl(): boolean {
  */
 export function isFirstPartyAnthropicBaseUrl(): boolean {
   return isFirstPartyNoumenaBaseUrl()
+}
+
+// ---------------------------------------------------------------------------
+// BYOK provider registry (see docs/design/PROVIDERS_REGISTRY.md)
+//
+// Declares one or more OpenAI-compatible BYOK endpoints in
+// .ncode/settings.json. Each declared provider contributes entries to the
+// /model picker, and a model ID resolves back to its owning provider at
+// request time. This is the sole BYOK path — there is no env-var fallback.
+// ---------------------------------------------------------------------------
+
+/**
+ * Load the operator's BYOK provider registry from .ncode/settings.json.
+ * Readonly. Returns [] when settings are absent, the providers key is
+ * missing, or schema validation fails. Schema validation (UserProviderSchema
+ * in settings/types.ts) guarantees base_url, api_key_env, and >=1 model per
+ * entry, so no defensive checks here.
+ */
+export function loadUserProviders(): readonly UserProvider[] {
+  const { settings, errors } = getSettingsWithErrors()
+  if (errors.length > 0 || !settings.providers) {
+    return []
+  }
+  return settings.providers
+}
+
+/**
+ * Find the registry entry that declares the given model ID. Returns the first
+ * match — operators should disambiguate duplicate IDs across providers by
+ * using distinct model IDs.
+ */
+export function findRegistryEntryForModel(
+  modelId: string,
+): UserProvider | undefined {
+  for (const provider of loadUserProviders()) {
+    if (provider.models.some(m => m.id === modelId)) {
+      return provider
+    }
+  }
+  return undefined
+}
+
+/**
+ * Return the { baseURL, apiKey } pair for the given model ID. Resolution
+ * order:
+ *   1. Registry lookup (does any declared entry expose this model ID?)
+ *      → return that entry's base_url + api_key (read lazily from env var)
+ *   2. undefined (caller treats as firstParty/Anthropic-native path)
+ *
+ * Throws if the registry entry's api_key_env points at an unset env var —
+ * loud failure preferred over silent unauthorized requests.
+ *
+ * The API key is read lazily on each call, so key rotations take effect
+ * without restarting ncode.
+ */
+export function getActiveProviderEndpointForModel(
+  modelId: string | undefined,
+): { baseURL: string; apiKey: string } | undefined {
+  const entry = modelId ? findRegistryEntryForModel(modelId) : undefined
+  if (!entry) return undefined
+  const apiKey = process.env[entry.api_key_env]?.trim()
+  if (!apiKey) {
+    throw new Error(
+      `Provider "${entry.name}" requires API key in env var ` +
+        `"${entry.api_key_env}" but it is unset or empty. Set the ` +
+        `env var and retry.`,
+    )
+  }
+  return { baseURL: entry.base_url, apiKey }
 }
