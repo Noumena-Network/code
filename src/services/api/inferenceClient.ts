@@ -1,8 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import {
   getAPIProvider,
-  getCustomProviderApiKey,
-  getCustomProviderBaseUrl,
+  getActiveProviderEndpointForModel,
   getNoumenaBaseUrl,
   isFirstPartyNoumenaBaseUrl,
 } from '../../utils/model/providers.js'
@@ -77,23 +76,24 @@ function getLegacyOpenAICompatBaseUrl(): string | undefined {
 export async function getInferenceClient(
   args: Parameters<typeof getAnthropicClient>[0],
 ): Promise<InferenceClient> {
-  const provider = getAPIProvider()
-
-  if (provider === 'custom') {
-    const baseURL = getCustomProviderBaseUrl()
-    const apiKey = getCustomProviderApiKey()
-    if (!baseURL || !apiKey) {
-      throw new Error(
-        'Custom provider enabled but NCODE_CUSTOM_PROVIDER_URL or NCODE_CUSTOM_PROVIDER_API_KEY is missing or empty',
-      )
-    }
+  // BYOK provider registry (see docs/design/PROVIDERS_REGISTRY.md): when a
+  // model ID is provided and the operator has declared it in
+  // .ncode/settings.json, route through OpenAICompatibility with that
+  // entry's baseURL + bearer auth. When the model isn't in the registry,
+  // falls through to the firstParty/Anthropic-native path.
+  const registryEndpoint = args.model
+    ? getActiveProviderEndpointForModel(args.model)
+    : undefined
+  if (registryEndpoint) {
     const fetch = getWrappedClientFetch(args.fetchOverride, args.source)
     return new OpenAICompatInferenceClient({
-      baseURL,
-      headers: { Authorization: `Bearer ${apiKey}` },
+      baseURL: registryEndpoint.baseURL,
+      headers: { Authorization: `Bearer ${registryEndpoint.apiKey}` },
       ...(fetch ? { fetch } : {}),
     })
   }
+
+  const provider = getAPIProvider()
 
   if (provider === 'firstParty') {
     const managedModelBaseURL = getNCodeManagedModelBaseUrl(args.model)
