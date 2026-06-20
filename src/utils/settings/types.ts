@@ -270,6 +270,36 @@ export const CUSTOMIZATION_SURFACES = [
   'mcp',
 ] as const
 
+/**
+ * One model entry surfaced in the picker for an operator-declared BYOK
+ * provider (see docs/design/PROVIDERS_REGISTRY.md). The `id` is the raw
+ * model name the provider's API expects (e.g. "deepseek-v4-pro",
+ * "anthropic/claude-3.5-sonnet" for OpenRouter). `label` and `description`
+ * are rendered in the picker sorted ahead of the auto-generated fallback.
+ */
+const UserProviderModelSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  description: z.string().optional(),
+  supports_thinking: z.boolean().optional(),
+})
+
+/**
+ * One OpenAI-compatible BYOK endpoint. `api_key_env` names the env var to
+ * read at request time — the key itself is never serialized to settings,
+ * matching the existing `api_key` file precedent at
+ * `~/.config/noumena/ncode/api_key`.
+ */
+const UserProviderSchema = z.object({
+  name: z.string().min(1),
+  base_url: z.string().url(),
+  api_key_env: z.string().min(1),
+  models: z.array(UserProviderModelSchema).min(1),
+})
+
+export type UserProviderModel = z.infer<typeof UserProviderModelSchema>
+export type UserProvider = z.infer<typeof UserProviderSchema>
+
 export const SettingsSchema = lazySchema(() =>
   z
     .object({
@@ -669,6 +699,14 @@ export const SettingsSchema = lazySchema(() =>
           'Skip the WebFetch blocklist check for enterprise environments with restrictive security policies',
         ),
       sandbox: SandboxSettingsSchema().optional(),
+      providers: z
+        .array(UserProviderSchema)
+        .optional()
+        .describe(
+          'Operator-declared BYOK OpenAI-compatible providers. Each entry ' +
+            'contributes its models to the /model picker alongside the ' +
+            'managed catalog. See docs/design/PROVIDERS_REGISTRY.md.',
+        ),
       feedbackSurveyRate: z
         .number()
         .min(0)
