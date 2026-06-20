@@ -52,10 +52,12 @@ export function modelSupportsEffort(model: string): boolean {
   // the model launch DRI and research. This is a sensitive setting that can
   // greatly affect model quality and bashing.
 
-  // Default to true for unknown model strings on 1P.
+  // Default to true for unknown model strings on 1P and custom (BYOK)
+  // providers, which handle effort/reasoning via their own API parameters.
   // Do not default to true for 3P as they have different formats for their
   // model strings (ex. anthropics/claude-code#30795)
-  return getAPIProvider() === 'firstParty'
+  const provider = getAPIProvider()
+  return provider === 'firstParty' || provider === 'custom'
 }
 
 // @[MODEL LAUNCH]: Add the new model to the allowlist if it supports 'max' effort.
