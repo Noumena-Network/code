@@ -72,7 +72,17 @@ function getConfiguredDefaultHaikuModelEnv(): string | undefined {
 }
 
 export function getSmallFastModel(): ModelName {
-  return getConfiguredSmallFastModelEnv() || getDefaultHaikuModel()
+  const configured = getConfiguredSmallFastModelEnv()
+  if (configured) return configured
+  // Custom (BYOK) providers have no built-in model catalog. Sub-agents
+  // and compaction need an explicit small/fast model configured.
+  if (getAPIProvider() === 'custom') {
+    throw new Error(
+      'Custom provider (BYOK) requires a small/fast model for sub-agents. ' +
+      'Set NOUMENA_SMALL_FAST_MODEL or ANTHROPIC_SMALL_FAST_MODEL.',
+    )
+  }
+  return getDefaultHaikuModel()
 }
 
 export function isNonCustomOpusModel(model: ModelName): boolean {
@@ -222,6 +232,17 @@ export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
     return (
       getAntModelOverrideConfig()?.defaultModel ??
       getDefaultOpusModel() + '[1m]'
+    )
+  }
+
+  // Custom provider (BYOK): no built-in default model. Users must
+  // configure a model via --model flag, NOUMENA_MODEL, or ANTHROPIC_MODEL.
+  if (getAPIProvider() === 'custom') {
+    const configured = getConfiguredMainModelEnv()
+    if (configured) return configured
+    throw new Error(
+      'Custom provider (BYOK) enabled but no model configured. ' +
+      'Set --model, NOUMENA_MODEL, or ANTHROPIC_MODEL to your provider\'s model name.',
     )
   }
 
@@ -509,6 +530,17 @@ export function parseUserSpecifiedModel(
     : normalizedModel
 
   if (isModelAlias(modelString)) {
+    // Claude family aliases resolve to built-in Claude model IDs which do
+    // not exist on custom (BYOK) providers. Reject them early rather than
+    // silently substituting a wrong model name.
+    if (getAPIProvider() === 'custom') {
+      throw new Error(
+        'Claude model aliases (opus, sonnet, haiku, best) are not supported ' +
+        'with custom providers. Use an exact model name from your provider ' +
+        '(e.g. --model deepseek-chat).',
+      )
+    }
+
     switch (modelString) {
       case 'opusplan':
         return getDefaultFlashModel() + (has1mTag ? '[1m]' : '') // Flash is default, priority model in plan mode
