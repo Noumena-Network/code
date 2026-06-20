@@ -26,6 +26,9 @@ const envKeys = [
   'ANTHROPIC_AUTH_TOKEN',
   'CLAUDE_CODE_OAUTH_TOKEN',
   'NCODE_CONFIG_DIR',
+  'NCODE_USE_CUSTOM_PROVIDER',
+  'NCODE_CUSTOM_PROVIDER_URL',
+  'NCODE_CUSTOM_PROVIDER_API_KEY',
   'NODE_ENV',
   'CI',
   'CLAUDE_CODE_ENTRYPOINT',
@@ -309,5 +312,39 @@ describe('getInferenceClient', () => {
     expect(request.url).toBe('https://code.staging.noumena.com/v1/models')
     expect(request.headers.get('authorization')).toBeNull()
     expect(request.headers.get('x-api-key')).toBe('byok-static-env-key')
+  })
+
+  it('routes custom provider to OpenAI compat client with Bearer auth', async () => {
+    process.env.NCODE_USE_CUSTOM_PROVIDER = '1'
+    process.env.NCODE_CUSTOM_PROVIDER_URL = 'https://api.deepseek.com'
+    process.env.NCODE_CUSTOM_PROVIDER_API_KEY = 'sk-deepseek-key'
+
+    const recorder = createModelsFetchRecorder()
+
+    const client = await getInferenceClient({
+      maxRetries: 2,
+      source: 'custom-provider',
+      fetchOverride: recorder.fetchOverride,
+    })
+
+    expect(client).toBeInstanceOf(OpenAICompatInferenceClient)
+    expect(await collectModels(client as OpenAICompatInferenceClient)).toEqual([
+      { id: 'test-model' },
+    ])
+
+    const request = recorder.getRequest()
+    expect(request.url).toBe('https://api.deepseek.com/v1/models')
+    expect(request.headers.get('authorization')).toBe('Bearer sk-deepseek-key')
+    expect(request.headers.get('x-api-key')).toBeNull()
+  })
+
+  it('throws when custom provider is enabled but credentials are missing', async () => {
+    process.env.NCODE_USE_CUSTOM_PROVIDER = '1'
+    delete process.env.NCODE_CUSTOM_PROVIDER_URL
+    process.env.NCODE_CUSTOM_PROVIDER_API_KEY = 'sk-key'
+
+    await expect(
+      getInferenceClient({ maxRetries: 2, source: 'custom-provider' }),
+    ).rejects.toThrow('missing or empty')
   })
 })
