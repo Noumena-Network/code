@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { getContextWindowForModel, getModelMaxOutputTokens } from './context.js'
 import {
+  DEEPSEEK_V4_FLASH_MAX_PROMPT_TOKENS,
+  DEEPSEEK_V4_FLASH_MODEL,
   GLM_5_2_MAX_PROMPT_TOKENS,
   GLM_5_2_MODEL,
   KIMI_2_7_CODER_MODEL,
@@ -30,6 +32,20 @@ describe('NCode managed model token contracts', () => {
     ['glm model', GLM_5_2_MODEL],
   ])('%s uses the GLM 5.2 1M prompt budget', (_label, model) => {
     expect(getContextWindowForModel(model)).toBe(GLM_5_2_MAX_PROMPT_TOKENS)
+    expect(getModelMaxOutputTokens(model)).toEqual({
+      default: NCODE_MANAGED_MODEL_MAX_TOKENS,
+      upperLimit: NCODE_MANAGED_MODEL_MAX_TOKENS,
+    })
+  })
+
+  test.each([
+    ['dsv4 flash alias', 'deepseek-v4-flash'],
+    ['dsv4 flash compact alias', 'dsv4-flash'],
+    ['dsv4 flash model', DEEPSEEK_V4_FLASH_MODEL],
+  ])('%s uses the DeepSeek V4 Flash 1M prompt budget', (_label, model) => {
+    expect(getContextWindowForModel(model)).toBe(
+      DEEPSEEK_V4_FLASH_MAX_PROMPT_TOKENS,
+    )
     expect(getModelMaxOutputTokens(model)).toEqual({
       default: NCODE_MANAGED_MODEL_MAX_TOKENS,
       upperLimit: NCODE_MANAGED_MODEL_MAX_TOKENS,

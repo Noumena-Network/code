@@ -5,6 +5,8 @@ import {
   getEffectiveContextWindowSize,
 } from './autoCompact.js'
 import {
+  DEEPSEEK_V4_FLASH_MAX_PROMPT_TOKENS,
+  DEEPSEEK_V4_FLASH_MODEL,
   GLM_5_2_MAX_PROMPT_TOKENS,
   GLM_5_2_MODEL,
   KIMI_2_7_CODER_MODEL,
@@ -41,6 +43,30 @@ describe('auto compact managed model prompt budgets', () => {
   ])('%s uses the GLM 5.2 1M autocompact budget', (_label, model) => {
     expect(getEffectiveContextWindowSize(model)).toBe(
       GLM_5_2_MAX_PROMPT_TOKENS,
+    )
+    expect(getAutoCompactThreshold(model)).toBe(987_000)
+
+    expect(calculateTokenWarningState(980_000, model)).toMatchObject({
+      isAboveAutoCompactThreshold: false,
+      isAtBlockingLimit: false,
+    })
+    expect(calculateTokenWarningState(995_000, model)).toMatchObject({
+      isAboveAutoCompactThreshold: true,
+      isAtBlockingLimit: false,
+    })
+    expect(calculateTokenWarningState(998_000, model)).toMatchObject({
+      isAboveAutoCompactThreshold: true,
+      isAtBlockingLimit: true,
+    })
+  })
+
+  test.each([
+    ['dsv4 flash alias', 'deepseek-v4-flash'],
+    ['dsv4 flash compact alias', 'dsv4-flash'],
+    ['dsv4 flash model', DEEPSEEK_V4_FLASH_MODEL],
+  ])('%s uses the DeepSeek V4 Flash 1M autocompact budget', (_label, model) => {
+    expect(getEffectiveContextWindowSize(model)).toBe(
+      DEEPSEEK_V4_FLASH_MAX_PROMPT_TOKENS,
     )
     expect(getAutoCompactThreshold(model)).toBe(987_000)
 

@@ -22,7 +22,12 @@ import {
   getAntModelOverrideConfig,
   resolveAntModel,
 } from './antModels.js'
-import { resolveNCodeManagedModel } from './ncodeModels.js'
+import {
+  DEEPSEEK_V4_FLASH_MODEL,
+  GLM_5_2_MODEL,
+  KIMI_2_7_CODER_MODEL,
+  resolveNCodeManagedModel,
+} from './ncodeModels.js'
 import { LIGHTNING_BOLT } from '../../constants/figures.js'
 import { isModelAllowed } from './modelAllowlist.js'
 import { type ModelAlias, isModelAlias } from './aliases.js'
@@ -151,7 +156,7 @@ export function getDefaultOpusModel(): ModelName {
   if (getAPIProvider() !== 'firstParty') {
     return getModelStrings().opus46
   }
-  return getModelStrings().opus46
+  return GLM_5_2_MODEL
 }
 
 // @[MODEL LAUNCH]: Update the default Flash model (3P providers may lag so keep defaults unchanged).
@@ -164,7 +169,7 @@ export function getDefaultFlashModel(): ModelName {
   if (getAPIProvider() !== 'firstParty') {
     return getModelStrings().sonnet45
   }
-  return getModelStrings().sonnet46
+  return KIMI_2_7_CODER_MODEL
 }
 
 // @[MODEL LAUNCH]: Update the default Haiku model (3P providers may lag so keep defaults unchanged).
@@ -174,8 +179,13 @@ export function getDefaultHaikuModel(): ModelName {
     return configuredModel
   }
 
-  // Haiku 4.5 is available on all platforms (first-party, Foundry, Bedrock, Vertex)
-  return getModelStrings().haiku45
+  // 3P providers (Bedrock, Vertex, Foundry) — kept as a separate branch
+  // even when values match, since 3P availability lags firstParty and
+  // these will diverge again at the next model launch.
+  if (getAPIProvider() !== 'firstParty') {
+    return getModelStrings().haiku45
+  }
+  return DEEPSEEK_V4_FLASH_MODEL
 }
 
 /**
@@ -225,9 +235,9 @@ export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
     )
   }
 
-  // Noumena-managed first-party sessions default to Kimi K2.7 Coder.
+  // Noumena-managed first-party sessions default to GLM 5.2.
   if (getAPIProvider() === 'firstParty') {
-    return 'kimi-2.7-coder'
+    return getDefaultOpusModel()
   }
 
   const session = getCurrentSubscriptionSessionState()

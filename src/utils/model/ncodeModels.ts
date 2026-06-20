@@ -25,6 +25,9 @@ export const KIMI_2_7_CODER_BASE_URL = 'https://api.noumena.com'
 export const KIMI_2_7_CODER_MODEL = '/data/models/hf/moonshotai__Kimi-K2.7-Code'
 export const GLM_5_2_MODEL = '/data/models/hf/zai-org__GLM-5.2-FP8'
 export const GLM_5_2_MAX_PROMPT_TOKENS = 1_000_000
+export const DEEPSEEK_V4_FLASH_MODEL =
+  '/data/models/hf/deepseek-ai__DeepSeek-V4-Flash'
+export const DEEPSEEK_V4_FLASH_MAX_PROMPT_TOKENS = 1_000_000
 
 // K2.6 is internal-only and not available in public/OSS builds. Keep both the
 // model identifier and base URL out of the public profile list; configure them
@@ -67,6 +70,26 @@ export const NCODE_MANAGED_MODEL_PROFILES = [
     defaultEffortLevel: 'high',
     supportsMaxEffort: false,
     contextWindow: GLM_5_2_MAX_PROMPT_TOKENS,
+    defaultMaxTokens: NCODE_MANAGED_MODEL_MAX_TOKENS,
+    upperMaxTokensLimit: NCODE_MANAGED_MODEL_MAX_TOKENS,
+    baseUrl: KIMI_2_7_CODER_BASE_URL,
+  },
+  {
+    primaryAlias: 'deepseek-v4-flash',
+    aliases: [
+      'deepseek v4 flash',
+      'deepseek-v4-flash',
+      'dsv4-flash',
+      'ds-v4-flash',
+      'v4-flash',
+    ] as const,
+    model: DEEPSEEK_V4_FLASH_MODEL,
+    routingModel: 'dsv4-flash',
+    label: 'DeepSeek V4 Flash',
+    description: 'Production DeepSeek V4 Flash coding model',
+    defaultEffortLevel: 'high',
+    supportsMaxEffort: false,
+    contextWindow: DEEPSEEK_V4_FLASH_MAX_PROMPT_TOKENS,
     defaultMaxTokens: NCODE_MANAGED_MODEL_MAX_TOKENS,
     upperMaxTokensLimit: NCODE_MANAGED_MODEL_MAX_TOKENS,
     baseUrl: KIMI_2_7_CODER_BASE_URL,

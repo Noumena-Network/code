@@ -7,6 +7,7 @@ import {
 } from './modelOptions.js'
 import { parseUserSpecifiedModel } from './model.js'
 import {
+  DEEPSEEK_V4_FLASH_MODEL,
   GLM_5_2_MODEL,
   KIMI_2_7_CODER_MODEL,
 } from './ncodeModels.js'
@@ -156,6 +157,12 @@ describe('modelOptions auth gating', () => {
       expect(parseUserSpecifiedModel('k2.7')).toBe(KIMI_2_7_CODER_MODEL)
       expect(parseUserSpecifiedModel('glm-5.2')).toBe(GLM_5_2_MODEL)
       expect(parseUserSpecifiedModel('GLM 5.2')).toBe(GLM_5_2_MODEL)
+      expect(parseUserSpecifiedModel('deepseek-v4-flash')).toBe(
+        DEEPSEEK_V4_FLASH_MODEL,
+      )
+      expect(parseUserSpecifiedModel('dsv4-flash')).toBe(
+        DEEPSEEK_V4_FLASH_MODEL,
+      )
     })
   })
 
