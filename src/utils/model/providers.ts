@@ -1,7 +1,7 @@
 import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from '../../services/analytics/index.js'
 import { isEnvTruthy } from '../envUtils.js'
 
-export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 'foundry'
+export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 'foundry' | 'custom'
 
 const FIRST_PARTY_NOUMENA_HOSTS = [
   'api.noumena.com',
@@ -26,6 +26,10 @@ export function getFirstPartyBaseUrlOverride(): string | undefined {
   return getNoumenaBaseUrl() ?? getAnthropicBaseUrl()
 }
 
+const NCODE_USE_CUSTOM_PROVIDER = 'NCODE_USE_CUSTOM_PROVIDER'
+const NCODE_CUSTOM_PROVIDER_URL = 'NCODE_CUSTOM_PROVIDER_URL'
+const NCODE_CUSTOM_PROVIDER_API_KEY = 'NCODE_CUSTOM_PROVIDER_API_KEY'
+
 export function getAPIProvider(): APIProvider {
   return isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)
     ? 'bedrock'
@@ -33,7 +37,37 @@ export function getAPIProvider(): APIProvider {
       ? 'vertex'
       : isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
         ? 'foundry'
-        : 'firstParty'
+        : isCustomProviderEnabled()
+          ? 'custom'
+          : 'firstParty'
+}
+
+/**
+ * Returns true when the operator has explicitly opted into the custom
+ * provider via NCODE_USE_CUSTOM_PROVIDER. Does not validate credentials —
+ * the credential check lives in inferenceClient where missing URL/key
+ * produce a clear error rather than a silent fallthrough to firstParty.
+ */
+function isCustomProviderEnabled(): boolean {
+  return isEnvTruthy(process.env[NCODE_USE_CUSTOM_PROVIDER])
+}
+
+/**
+ * The OpenAI-compatible base URL configured for the custom provider
+ * (e.g. https://api.deepseek.com). Returns undefined when not set or
+ * empty.
+ */
+export function getCustomProviderBaseUrl(): string | undefined {
+  return normalizeBaseUrl(process.env[NCODE_CUSTOM_PROVIDER_URL])
+}
+
+/**
+ * The API key for the custom provider. Sent as Authorization: Bearer <key>
+ * to the OpenAI-compatible endpoint. Returns undefined when not set or
+ * empty.
+ */
+export function getCustomProviderApiKey(): string | undefined {
+  return process.env[NCODE_CUSTOM_PROVIDER_API_KEY]?.trim() || undefined
 }
 
 export function getAPIProviderForStatsig(): AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS {
