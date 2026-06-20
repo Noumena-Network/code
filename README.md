@@ -65,6 +65,53 @@ Recognized Kimi aliases include `kimi-2.7-coder`, `k2.7`, `kimi-2.7`, and `kimi 
 Recognized GLM aliases include `glm-5.2`, `glm52`, `glm 5.2`, `glm-5.2-fp8`, and `glm52-fp8`.
 You can also set `NOUMENA_MODEL=kimi-2.7-coder` or `NOUMENA_MODEL=glm-5.2` in your environment.
 
+## Custom Providers (BYOK)
+
+ncode supports any OpenAI-compatible API endpoint via the `custom` provider. This lets you use your own API key with providers like DeepSeek, Fireworks, Together, or any self-hosted vLLM/OpenAI-compatible server.
+
+Enable it with three environment variables:
+
+```bash
+NCODE_USE_CUSTOM_PROVIDER=1 \
+NCODE_CUSTOM_PROVIDER_URL=https://api.deepseek.com \
+NCODE_CUSTOM_PROVIDER_API_KEY=sk-your-deepseek-api-key \
+NCODE_OPENAI_COMPAT_WS_V2=0 \
+NOUMENA_MODEL=deepseek-chat \
+ncode
+```
+
+Then specify your model with `--model` or set the default:
+
+```bash
+# Via flag
+ncode --model deepseek-chat
+
+# Or set a default via env var
+NOUMENA_MODEL=deepseek-chat ncode
+ANTHROPIC_MODEL=deepseek-chat ncode  # legacy fallback
+```
+
+The provider must expose OpenAI-compatible `/v1/chat/completions` and `/v1/models` endpoints. API keys are sent as `Authorization: Bearer <key>`. The build mode must be `external` (the default OSS build).
+
+The base URL must be the API origin only (e.g. `https://api.deepseek.com`). Do not include API version path segments like `/v1` — ncode appends the correct paths automatically.
+
+For best performance with custom providers, disable the Noumena WebSocket transport:
+
+```bash
+NCODE_OPENAI_COMPAT_WS_V2=0
+```
+
+This avoids a speculative WebSocket connection attempt (which falls back to standard HTTPS, but adds a small startup delay).
+
+**Sub-agent models**: ncode spawns sub-agents for compaction and parallel work, which use a small/fast model. For custom providers, you must also configure this model explicitly:
+
+```bash
+NOUMENA_SMALL_FAST_MODEL=deepseek-chat
+ANTHROPIC_SMALL_FAST_MODEL=deepseek-chat  # legacy fallback
+```
+
+If not set, sub-agents and compaction will receive a model name that may not be available on your custom provider. Claude model aliases (`opus`, `sonnet`, `haiku`) are not usable with custom providers — use exact model names from your provider's API.
+
 ## Requirements
 
 Build requirements:
