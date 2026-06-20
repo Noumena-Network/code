@@ -1,6 +1,8 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import {
   getAPIProvider,
+  getCustomProviderApiKey,
+  getCustomProviderBaseUrl,
   getNoumenaBaseUrl,
   isFirstPartyNoumenaBaseUrl,
 } from '../../utils/model/providers.js'
@@ -75,7 +77,25 @@ function getLegacyOpenAICompatBaseUrl(): string | undefined {
 export async function getInferenceClient(
   args: Parameters<typeof getAnthropicClient>[0],
 ): Promise<InferenceClient> {
-  if (getAPIProvider() === 'firstParty') {
+  const provider = getAPIProvider()
+
+  if (provider === 'custom') {
+    const baseURL = getCustomProviderBaseUrl()
+    const apiKey = getCustomProviderApiKey()
+    if (!baseURL || !apiKey) {
+      throw new Error(
+        'Custom provider enabled but NCODE_CUSTOM_PROVIDER_URL or NCODE_CUSTOM_PROVIDER_API_KEY is missing or empty',
+      )
+    }
+    const fetch = getWrappedClientFetch(args.fetchOverride, args.source)
+    return new OpenAICompatInferenceClient({
+      baseURL,
+      headers: { Authorization: `Bearer ${apiKey}` },
+      ...(fetch ? { fetch } : {}),
+    })
+  }
+
+  if (provider === 'firstParty') {
     const managedModelBaseURL = getNCodeManagedModelBaseUrl(args.model)
     const configuredCompatBaseURL =
       getNoumenaBaseUrl() ?? getLegacyOpenAICompatBaseUrl()
