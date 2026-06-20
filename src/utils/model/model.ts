@@ -532,12 +532,23 @@ export function parseUserSpecifiedModel(
   if (isModelAlias(modelString)) {
     // Claude family aliases resolve to built-in Claude model IDs which do
     // not exist on custom (BYOK) providers. Reject them early rather than
-    // silently substituting a wrong model name.
-    if (getAPIProvider() === 'custom') {
+    // silently substituting a wrong model name. Non-Claude aliases (kimi
+    // variants) pass through — they resolve via resolveNCodeManagedModel
+    // and won't be reached on a custom provider.
+    if (
+      getAPIProvider() === 'custom' &&
+      (modelString === 'sonnet' ||
+        modelString === 'opus' ||
+        modelString === 'haiku' ||
+        modelString === 'best' ||
+        modelString === 'sonnet[1m]' ||
+        modelString === 'opus[1m]' ||
+        modelString === 'opusplan')
+    ) {
       throw new Error(
         'Claude model aliases (opus, sonnet, haiku, best) are not supported ' +
         'with custom providers. Use an exact model name from your provider ' +
-        '(e.g. --model deepseek-chat).',
+        '(e.g. --model deepseek-v4-pro).',
       )
     }
 
