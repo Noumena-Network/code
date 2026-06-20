@@ -531,10 +531,10 @@ export function parseUserSpecifiedModel(
 
   if (isModelAlias(modelString)) {
     // Claude family aliases resolve to built-in Claude model IDs which do
-    // not exist on custom (BYOK) providers. Reject them early rather than
-    // silently substituting a wrong model name. Non-Claude aliases (kimi
-    // variants) pass through — they resolve via resolveNCodeManagedModel
-    // and won't be reached on a custom provider.
+    // not exist on custom (BYOK) providers. Rather than crashing the TUI
+    // (model picker, status bar, etc. all call parseUserSpecifiedModel),
+    // pass the alias through un-resolved. The API will return a clear
+    // model-not-found error, which is better UX than a broken picker.
     if (
       getAPIProvider() === 'custom' &&
       (modelString === 'sonnet' ||
@@ -545,11 +545,7 @@ export function parseUserSpecifiedModel(
         modelString === 'opus[1m]' ||
         modelString === 'opusplan')
     ) {
-      throw new Error(
-        'Claude model aliases (opus, sonnet, haiku, best) are not supported ' +
-        'with custom providers. Use an exact model name from your provider ' +
-        '(e.g. --model deepseek-v4-pro).',
-      )
+      return modelInputTrimmed
     }
 
     switch (modelString) {
