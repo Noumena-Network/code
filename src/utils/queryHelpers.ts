@@ -383,7 +383,7 @@ export function extractReadFilesFromMessages(
           const input = content.input as
             | { file_path?: string; content?: string }
             | undefined
-          if (input?.file_path && input?.content) {
+          if (input?.file_path && typeof input.content === 'string') {
             // Normalize to absolute path for consistent cache lookups
             const absolutePath = expandPath(input.file_path, cwd)
             fileWriteToolUseIds.set(content.id, {
@@ -448,9 +448,14 @@ export function extractReadFilesFromMessages(
             }
           }
 
-          // Handle Write tool results - use content from the tool input
+          // Handle Write tool results - use content from the tool input.
+          // Skip failed writes: their input content never reached disk, so
+          // seeding the cache from it would either store a wrong disk-state
+          // snapshot (when input.content has the intended text) or crash
+          // sizeCalculation when input.content is non-string (e.g. an
+          // Object rejected by the Write tool's string-content contract).
           const writeToolData = fileWriteToolUseIds.get(content.tool_use_id)
-          if (writeToolData && message.timestamp) {
+          if (writeToolData && content.is_error !== true && message.timestamp) {
             const timestamp = new Date(message.timestamp).getTime()
             cache.set(writeToolData.filePath, {
               content: writeToolData.content,

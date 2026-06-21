@@ -4,7 +4,11 @@ import {
   createAssistantMessage,
   createUserMessage,
 } from './messages.js'
-import { isResultSuccessful, normalizeMessage } from './queryHelpers.js'
+import {
+  extractReadFilesFromMessages,
+  isResultSuccessful,
+  normalizeMessage,
+} from './queryHelpers.js'
 
 function createBashProgressMessage({
   parentToolUseID,
@@ -172,5 +176,97 @@ describe('normalizeMessage', () => {
       }),
     ])
     expect(second).toEqual([])
+  })
+})
+
+describe('extractReadFilesFromMessages', () => {
+  it('seeds the readFileState cache from successful Write tool_use', () => {
+    const messages = [
+      createAssistantMessage({
+        content: [
+          {
+            type: 'tool_use',
+            id: 'write-ok',
+            name: 'Write',
+            input: { file_path: '/tmp/foo.txt', content: 'hello world' },
+          } as never,
+        ],
+      }),
+      createUserMessage({
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'write-ok',
+            content: 'wrote 1 file',
+            is_error: false,
+          } as never,
+        ],
+      }),
+    ]
+
+    const cache = extractReadFilesFromMessages(messages, '/tmp')
+    expect(cache.has('/tmp/foo.txt')).toBe(true)
+    expect(cache.get('/tmp/foo.txt')?.content).toBe('hello world')
+  })
+
+  it('skips Write tool_results that returned is_error', () => {
+    const messages = [
+      createAssistantMessage({
+        content: [
+          {
+            type: 'tool_use',
+            id: 'write-failed',
+            name: 'Write',
+            input: { file_path: '/tmp/bar.txt', content: 'never written' },
+          } as never,
+        ],
+      }),
+      createUserMessage({
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'write-failed',
+            content: 'error: invalid path',
+            is_error: true,
+          } as never,
+        ],
+      }),
+    ]
+
+    const cache = extractReadFilesFromMessages(messages, '/tmp')
+    expect(cache.has('/tmp/bar.txt')).toBe(false)
+  })
+
+  it('does not crash when a failed Write carried non-string content', () => {
+    // Regression: a Write tool_use rejected with is_error: true could still
+    // have its (object-typed) content captured, and Buffer.byteLength would
+    // throw when the LRU computed entry size.
+    const messages = [
+      createAssistantMessage({
+        content: [
+          {
+            type: 'tool_use',
+            id: 'write-malformed',
+            name: 'Write',
+            input: { file_path: '/tmp/baz.txt', content: { weird: 'object' } },
+          } as never,
+        ],
+      }),
+      createUserMessage({
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'write-malformed',
+            content: 'error: content must be a string',
+            is_error: true,
+          } as never,
+        ],
+      }),
+    ]
+
+    // Should not throw.
+    const cache = extractReadFilesFromMessages(messages, '/tmp')
+    expect(cache.has('/tmp/baz.txt')).toBe(false)
+    expect(cache.size).toBe(0)
   })
 })
