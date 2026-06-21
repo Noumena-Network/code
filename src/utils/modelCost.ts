@@ -20,8 +20,16 @@ import {
   firstPartyNameToCanonical,
   getCanonicalName,
   getDefaultMainLoopModelSetting,
+  getDefaultOpusModel,
+  getDefaultFlashModel,
+  getDefaultHaikuModel,
   type ModelShortName,
 } from './model/model.js'
+import {
+  DEEPSEEK_V4_FLASH_MODEL,
+  GLM_5_2_MODEL,
+  KIMI_2_7_CODER_MODEL,
+} from './model/ncodeModels.js'
 
 // @see pricing docs
 export type ModelCosts = {
@@ -86,6 +94,42 @@ export const COST_HAIKU_45 = {
   webSearchRequests: 0.01,
 } as const satisfies ModelCosts
 
+// Pricing for GLM 5.2 (Z.AI / Zhipu), per 1M tokens.
+// Source: https://docs.z.ai/guides/overview/pricing
+//   Input: $1.40 · Cached input (read): $0.26 · Output: $4.40
+// Z.ai does not publish a separate cache-write tier; cache-miss falls back
+// to the regular input rate ($1.40). Cached input storage is currently
+// limited-time free and is represented as the read rate.
+export const COST_GLM_52 = {
+  inputTokens: 1.4,
+  outputTokens: 4.4,
+  promptCacheWriteTokens: 1.4,
+  promptCacheReadTokens: 0.26,
+  webSearchRequests: 0.01,
+} as const satisfies ModelCosts
+
+// Pricing for Kimi K2.7 Code (Moonshot), per 1M tokens.
+// Source: https://platform.kimi.ai/docs/pricing/chat-k27-code
+//   Cache-miss/write input: $0.95 · Cache-hit input: $0.19 · Output: $4.00
+export const COST_KIMI_K27 = {
+  inputTokens: 0.95,
+  outputTokens: 4,
+  promptCacheWriteTokens: 0.95,
+  promptCacheReadTokens: 0.19,
+  webSearchRequests: 0.01,
+} as const satisfies ModelCosts
+
+// Pricing for DeepSeek V4 Flash, per 1M tokens.
+// Source: https://api-docs.deepseek.com/quick_start/pricing
+//   Cache-miss input: $0.14 · Cache-hit input: $0.0028 · Output: $0.28
+export const COST_DSV4_FLASH = {
+  inputTokens: 0.14,
+  outputTokens: 0.28,
+  promptCacheWriteTokens: 0.14,
+  promptCacheReadTokens: 0.0028,
+  webSearchRequests: 0.01,
+} as const satisfies ModelCosts
+
 const DEFAULT_UNKNOWN_MODEL_COST = COST_TIER_5_25
 
 /**
@@ -123,6 +167,12 @@ export const MODEL_COSTS: Record<ModelShortName, ModelCosts> = {
     COST_TIER_5_25,
   [firstPartyNameToCanonical(CLAUDE_OPUS_4_6_CONFIG.firstParty)]:
     COST_TIER_5_25,
+
+  // Managed first-party model pricing (GLM 5.2, Kimi K2.7, DeepSeek V4 Flash)
+  // These use the model path as the key since they don't have Claude-style config entries.
+  [GLM_5_2_MODEL]: COST_GLM_52,
+  [KIMI_2_7_CODER_MODEL]: COST_KIMI_K27,
+  [DEEPSEEK_V4_FLASH_MODEL]: COST_DSV4_FLASH,
 }
 
 /**
