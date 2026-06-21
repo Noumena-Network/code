@@ -238,9 +238,6 @@ describe('extractReadFilesFromMessages', () => {
   })
 
   it('does not crash when a failed Write carried non-string content', () => {
-    // Regression: a Write tool_use rejected with is_error: true could still
-    // have its (object-typed) content captured, and Buffer.byteLength would
-    // throw when the LRU computed entry size.
     const messages = [
       createAssistantMessage({
         content: [

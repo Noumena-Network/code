@@ -448,12 +448,7 @@ export function extractReadFilesFromMessages(
             }
           }
 
-          // Handle Write tool results - use content from the tool input.
-          // Skip failed writes: their input content never reached disk, so
-          // seeding the cache from it would either store a wrong disk-state
-          // snapshot (when input.content has the intended text) or crash
-          // sizeCalculation when input.content is non-string (e.g. an
-          // Object rejected by the Write tool's string-content contract).
+          // Handle Write tool results - use content from the tool input. Skip is_error: content never reached disk, matching the Edit branch.
           const writeToolData = fileWriteToolUseIds.get(content.tool_use_id)
           if (writeToolData && content.is_error !== true && message.timestamp) {
             const timestamp = new Date(message.timestamp).getTime()
