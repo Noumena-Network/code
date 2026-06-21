@@ -69,14 +69,20 @@ export function getContextWindowForModel(
     }
   }
 
-  // [1m] suffix — explicit client-side opt-in, respected over all detection
-  if (has1mContext(model)) {
-    return 1_000_000
-  }
-
+  // Managed model profile is authoritative. This runs BEFORE the [1m] regex
+  // so that attaching [1m] to an alias that resolves to a managed model
+  // (e.g. `sonnet[1m]` -> Kimi K2.7, which has a 200K usable budget) cannot
+  // silently inflate the context window past what the model can actually
+  // serve. The [1m] tag still works as expected for unmanaged Anthropic-style
+  // models below.
   const ncodeModel = resolveNCodeManagedModel(model)
   if (ncodeModel) {
     return ncodeModel.contextWindow
+  }
+
+  // [1m] suffix — explicit client-side opt-in for unmanaged Anthropic models.
+  if (has1mContext(model)) {
+    return 1_000_000
   }
 
   const cap = getModelCapability(model)

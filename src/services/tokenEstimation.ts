@@ -244,9 +244,15 @@ export function roughTokenCountEstimationForFileType(
 /**
  * Estimates token count for a Message object by extracting and analyzing its text content.
  * This provides a more reliable estimate than getTokenUsage for messages that may have been compacted.
- * Uses Haiku for token counting (Haiku 4.5 supports thinking blocks), except:
- * - Vertex global region: uses Sonnet (Haiku not available)
- * - Bedrock with thinking blocks: uses Sonnet (Haiku 3.5 doesn't support thinking)
+ *
+ * Model selection:
+ * - Noumena-managed first-party: uses the main loop model so the reported usage
+ *   comes back on the same tokenizer that will serve the actual request (GLM /
+ *   Kimi have provider-specific tokenizers; routing count requests through
+ *   DeepSeek V4 Flash would silently mis-estimate for a GLM main loop).
+ * - Bedrock/Vertex 3P: uses Sonnet for Vertex global region and for any
+ *   thinking-block request (Haiku 3.5 cannot represent thinking blocks),
+ *   otherwise uses the configured SmallFastModel.
  */
 export async function countTokensViaHaikuFallback(
   messages: Anthropic.Beta.Messages.BetaMessageParam[],
@@ -265,14 +271,15 @@ export async function countTokensViaHaikuFallback(
   // If we're on Vertex with thinking blocks, use Sonnet since Haiku 3.5 doesn't support thinking
   const isVertexWithThinking =
     isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) && containsThinking
-  // Otherwise always use Haiku - Haiku 4.5 supports thinking blocks.
-  // WARNING: if you change this to use a non-Haiku model, this request will fail in 1P unless it uses getCLISyspromptPrefix.
-  // Note: We don't need Sonnet for tool_reference blocks because we strip them via
-  // stripToolSearchFieldsFromMessages() before sending.
-  // Use getSmallFastModel() to respect ANTHROPIC_SMALL_FAST_MODEL env var for Bedrock users
-  // with global inference profiles (see issue #10883).
-  const model =
-    isVertexGlobalEndpoint || isBedrockWithThinking || isVertexWithThinking
+  // On Noumena-managed first-party, route token counting through the main
+  // loop model so the reported usage matches the tokenizer of the serving
+  // model. GLM, Kimi, and DeepSeek V4 Flash each have provider-specific
+  // tokenizers; using a different model family for counting would silently
+  // mis-estimate input tokens, breaking auto-compact thresholds.
+  const isManagedFirstParty = getAPIProvider() === 'firstParty'
+  const model = isManagedFirstParty
+    ? getMainLoopModel()
+    : isVertexGlobalEndpoint || isBedrockWithThinking || isVertexWithThinking
       ? getDefaultFlashModel()
       : getSmallFastModel()
   const inferenceClient = await getInferenceClient({

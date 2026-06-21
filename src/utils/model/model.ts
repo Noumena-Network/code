@@ -169,6 +169,9 @@ export function getDefaultFlashModel(): ModelName {
   if (getAPIProvider() !== 'firstParty') {
     return getModelStrings().sonnet45
   }
+  // On Noumena-managed first-party, the Flash/Sonnet tier maps to Kimi K2.7
+  // Coder (balanced coding model, default main loop for non-premium surfaces,
+  // memory ranking, and other balanced-tier work).
   return KIMI_2_7_CODER_MODEL
 }
 
@@ -521,7 +524,7 @@ export function parseUserSpecifiedModel(
   if (isModelAlias(modelString)) {
     switch (modelString) {
       case 'opusplan':
-        return getDefaultFlashModel() + (has1mTag ? '[1m]' : '') // Flash is default, priority model in plan mode
+        return getDefaultOpusModel() + (has1mTag ? '[1m]' : '') // Opus-tier reasoning in plan mode
       case 'sonnet':
         return getDefaultFlashModel() + (has1mTag ? '[1m]' : '')
       case 'haiku':
