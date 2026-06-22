@@ -412,8 +412,8 @@ export const FileReadTool = buildTool({
   renderToolResultMessage,
   // UI.tsx:140 — ALL types render summary chrome only: "Read N lines",
   // "Read image (42KB)". Never the content itself. The model-facing
-  // serialization (below) sends content + CYBER_RISK_MITIGATION_REMINDER
-  // + line prefixes; UI shows none of it. Nothing to index. Caught by
+  // serialization (below) sends line-prefixed content; UI shows none of it.
+  // The cyber-risk reminder is not appended to every read result. Caught by
   // the render-fidelity test when this initially claimed file.content.
   extractSearchText() {
     return ''
@@ -699,10 +699,7 @@ export const FileReadTool = buildTool({
         if (data.file.content) {
           content =
             memoryFileFreshnessPrefix(data) +
-            formatFileLines(data.file) +
-            (shouldIncludeFileReadMitigation()
-              ? CYBER_RISK_MITIGATION_REMINDER
-              : '')
+            formatFileLines(data.file)
         } else {
           // Determine the appropriate warning message
           content =
