@@ -102,12 +102,14 @@ function getMagicDocsAgent(): BuiltInAgentDefinition {
     agentType: 'magic-docs',
     whenToUse: 'Update Magic Docs',
     tools: [FILE_EDIT_TOOL_NAME], // Only allow Edit
-    model: 'sonnet',
+    model: 'inherit',
     source: 'built-in',
     baseDir: 'built-in',
     getSystemPrompt: () => '', // Will use override systemPrompt
   }
 }
+
+export const _getMagicDocsAgentForTest = getMagicDocsAgent
 
 /**
  * Update a single Magic Doc

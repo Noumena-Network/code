@@ -138,7 +138,7 @@ export const STATUSLINE_SETUP_AGENT: BuiltInAgentDefinition = {
   tools: ['Read', 'Edit'],
   source: 'built-in',
   baseDir: 'built-in',
-  model: 'sonnet',
+  model: 'inherit',
   color: 'orange',
   getSystemPrompt: () => STATUSLINE_SYSTEM_PROMPT,
 }
