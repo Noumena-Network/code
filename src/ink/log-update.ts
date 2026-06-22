@@ -152,6 +152,7 @@ export class LogUpdate {
     options?: {
       clearRowsBeforeWrite?: boolean
       clearViewportBeforeWrite?: boolean
+      forceClearViewportRemainder?: boolean
     },
   ): RenderOutput {
     this.state.previousOutput = ''
@@ -1013,6 +1014,7 @@ function fullViewportRepaintFromHome(
   options?: {
     clearRowsBeforeWrite?: boolean
     clearViewportBeforeWrite?: boolean
+    forceClearViewportRemainder?: boolean
   },
 ): Diff {
   const screen = new VirtualScreen({ x: 0, y: 0 }, frame.viewport.width)
@@ -1022,10 +1024,17 @@ function fullViewportRepaintFromHome(
       ? ERASE_SCREEN + CURSOR_HOME
       : CURSOR_HOME,
   })
+  // shouldClearViewportRemainder returns false on identical-dimension frames
+  // (empty-row loop), leaving stale cells below content on ctrl+l spam.
+  // Force ESC[J (clear-to-end) without an ESC[2J that would scroll content
+  // into scrollback.
+  const clearToViewportEnd =
+    options?.forceClearViewportRemainder ||
+    shouldClearViewportRemainder(previousFrame, frame)
   renderFrameSlice(screen, frame, 0, frame.screen.height, stylePool, {
     clearRowTails: !options?.clearRowsBeforeWrite,
     clearRowsBeforeWrite: options?.clearRowsBeforeWrite,
-    clearToViewportEnd: shouldClearViewportRemainder(previousFrame, frame),
+    clearToViewportEnd,
     previousFrame,
   })
   return screen.diff
@@ -1061,6 +1070,7 @@ function mainScreenViewportRepaintFromHome(
   options?: {
     clearRowsBeforeWrite?: boolean
     clearViewportBeforeWrite?: boolean
+    forceClearViewportRemainder?: boolean
   },
 ): RenderOutput {
   const visibleFrame = clipMainScreenFrameToVisibleRows(frame, stylePool)

@@ -185,6 +185,7 @@ export default class Ink {
   // frame, so the resume path queues one explicit repaint-from-home contract.
   private mainScreenPendingRepaintFromHome = false;
   private mainScreenPendingClearBeforePaint = false;
+  private mainScreenPendingForceHomeRepaint = false;
   // Native cursor positioning: a component (via useDeclaredCursor) declares
   // where the terminal cursor should be parked after each frame. Terminal
   // emulators render IME preedit text at the physical cursor position, and
@@ -636,6 +637,7 @@ export default class Ink {
     const mainScreenPreviousOutputTopRepaint =
       mainScreenHomeRepaint &&
       !mainScreenClearBeforePaint &&
+      !this.mainScreenPendingForceHomeRepaint &&
       canRepaintFromPreviousOutputTop(this.logicalFrontFrame);
     const mainScreenHomeAnchoredRepaint =
       mainScreenHomeRepaint && !mainScreenPreviousOutputTopRepaint;
@@ -657,7 +659,8 @@ export default class Ink {
       if (mainScreenHomeRepaint) {
         renderPath = 'main-screen-home-repaint';
         return this.log.renderMainScreenRepaintFromHome(frame, this.logicalFrontFrame, {
-          clearRowsBeforeWrite: true
+          clearRowsBeforeWrite: true,
+          forceClearViewportRemainder: this.mainScreenPendingForceHomeRepaint,
         });
       }
       if (altScreenHomeRepaint) {
@@ -683,6 +686,7 @@ export default class Ink {
     if (mainScreenHomeRepaint) {
       this.mainScreenPendingRepaintFromHome = false;
       this.mainScreenPendingClearBeforePaint = false;
+      this.mainScreenPendingForceHomeRepaint = false;
     }
     // Buffer swap happens after the command buffer is written below. Until then,
     // frontFrame remains the committed physical presentation baseline.
@@ -937,7 +941,7 @@ export default class Ink {
    * (macOS Cmd+K) and Ink's diff engine thinks unchanged cells don't need
    * repainting. Scrollback is preserved.
    */
-  forceRedraw(options?: { clearBeforePaint?: boolean }): void {
+  forceRedraw(options?: { clearBeforePaint?: boolean; forceHomeRepaint?: boolean }): void {
     if (!this.options.stdout.isTTY || this.isUnmounted || this.isPaused) return;
     if (this.altScreenActive) {
       // Alt-screen force redraw should not toggle mode 1049. Keep recovery
@@ -959,6 +963,9 @@ export default class Ink {
       this.displayCursor = null;
       this.mainScreenPendingRepaintFromHome = true;
       this.mainScreenPendingClearBeforePaint = !!options?.clearBeforePaint;
+      if (options?.forceHomeRepaint) {
+        this.mainScreenPendingForceHomeRepaint = true;
+      }
     }
     this.onRender();
   }

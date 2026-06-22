@@ -223,7 +223,7 @@ export function GlobalKeybindingHandlers({
   // terminal was cleared externally (macOS Cmd+K) and Ink's diff engine
   // thinks unchanged cells don't need repainting.
   const handleRedraw = useCallback(() => {
-    instances.get(process.stdout)?.forceRedraw();
+    instances.get(process.stdout)?.forceRedraw({ forceHomeRepaint: true });
   }, []);
   useKeybinding('app:redraw', handleRedraw, {
     context: 'Global'
