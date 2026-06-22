@@ -16,6 +16,7 @@ import {
 } from '../modelCost.js'
 import {
   DEEPSEEK_V4_FLASH_MODEL,
+  GLM_5_2_1M_MODEL,
   GLM_5_2_MODEL,
   KIMI_2_7_CODER_MODEL,
   resolveNCodeManagedModel,
@@ -42,12 +43,14 @@ describe('managed first-party tier contract (end-to-end)', () => {
 
     test("'opus' alias resolves through parseUserSpecifiedModel to GLM 5.2", () => {
       expect(parseUserSpecifiedModel('opus')).toBe(GLM_5_2_MODEL)
+      expect(getContextWindowForModel(parseUserSpecifiedModel('opus'))).toBe(200_000)
     })
 
-    test("'opus[1m]' alias resolves to GLM 5.2 with [1m] tag", () => {
+    test("'opus[1m]' alias resolves to the explicit GLM 5.2 1M lane", () => {
       const resolved = parseUserSpecifiedModel('opus[1m]')
-      expect(resolved).toBe(`${GLM_5_2_MODEL}[1m]`)
+      expect(resolved).toBe(GLM_5_2_1M_MODEL)
       expect(getContextWindowForModel(resolved)).toBe(1_000_000)
+      expect(resolveNCodeManagedModel(resolved)?.routingModel).toBe('glm52-1m')
     })
 
     test("'best' alias resolves to GLM 5.2", () => {
@@ -57,8 +60,16 @@ describe('managed first-party tier contract (end-to-end)', () => {
     test('GLM 5.2 cost lookup mirrors its managed tier', () => {
       expect(parseUserSpecifiedModel(GLM_5_2_MODEL)).toBe(GLM_5_2_MODEL)
       expect(resolveNCodeManagedModel(GLM_5_2_MODEL)?.routingModel).toBe('glm52')
+      expect(resolveNCodeManagedModel(GLM_5_2_MODEL)?.contextWindow).toBe(200_000)
       // Sanity: GLM cost constant is the one we registered
       void COST_GLM_52 // imported above for completeness; the rates themselves are pinned in modelCost.managed.test.ts
+    })
+
+    test('GLM 5.2 explicit managed [1m] aliases resolve to the 1M lane', () => {
+      expect(parseUserSpecifiedModel('glm-5.2[1m]')).toBe(GLM_5_2_1M_MODEL)
+      expect(parseUserSpecifiedModel('glm52[1m]')).toBe(GLM_5_2_1M_MODEL)
+      expect(parseUserSpecifiedModel(GLM_5_2_1M_MODEL)).toBe(GLM_5_2_1M_MODEL)
+      expect(resolveNCodeManagedModel(GLM_5_2_1M_MODEL)?.routingModel).toBe('glm52-1m')
     })
   })
 
@@ -127,9 +138,9 @@ describe('managed first-party tier contract (end-to-end)', () => {
       expect(parseUserSpecifiedModel('opusplan')).toBe(GLM_5_2_MODEL)
     })
 
-    test("'opusplan[1m]' resolves to GLM 5.2 with [1m] tag (GLM is natively 1M)", () => {
+    test("'opusplan[1m]' resolves to the explicit GLM 5.2 1M lane", () => {
       const resolved = parseUserSpecifiedModel('opusplan[1m]')
-      expect(resolved).toBe(`${GLM_5_2_MODEL}[1m]`)
+      expect(resolved).toBe(GLM_5_2_1M_MODEL)
       expect(getContextWindowForModel(resolved)).toBe(1_000_000)
     })
   })

@@ -10,6 +10,7 @@ import {
   resolveOpenAICompatRequestPolicy,
 } from './openAICompatInferenceClient.js'
 import {
+  DEEPSEEK_V4_FLASH_MODEL,
   GLM_5_2_MODEL,
   KIMI_2_7_CODER_MODEL,
 } from '../../utils/model/ncodeModels.js'
@@ -1906,10 +1907,26 @@ describe('OpenAICompatInferenceClient', () => {
       messages: [{ role: 'user', content: 'hello' }],
     } as never)
 
+    await client.createMessage({
+      model: 'glm-5.2[1m]',
+      max_tokens: 8,
+      messages: [{ role: 'user', content: 'hello' }],
+    } as never)
+
+    await client.createMessage({
+      model: 'deepseek-v4-flash',
+      max_tokens: 8,
+      messages: [{ role: 'user', content: 'hello' }],
+    } as never)
+
     expect(bodies[0]?.model).toBe(KIMI_2_7_CODER_MODEL)
     expect(headers[0]?.get('x-noumena-model')).toBe('kimi-k25')
     expect(bodies[1]?.model).toBe(GLM_5_2_MODEL)
     expect(headers[1]?.get('x-noumena-model')).toBe('glm52')
+    expect(bodies[2]?.model).toBe(GLM_5_2_MODEL)
+    expect(headers[2]?.get('x-noumena-model')).toBe('glm52-1m')
+    expect(bodies[3]?.model).toBe(DEEPSEEK_V4_FLASH_MODEL)
+    expect(headers[3]?.get('x-noumena-model')).toBe('dsv4-flash')
   })
 
   it('makes streamed unsafe-backend requests honor the final reasoning policy instead of the raw caller toggle', async () => {
@@ -2839,36 +2856,37 @@ describe('OpenAICompatInferenceClient', () => {
       request: Record<string, unknown>
       headers: Headers
     }> = []
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(
-          new TextEncoder().encode(
-            `data: ${JSON.stringify({
-              id: 'chatcmpl-kimi27-ws2',
-              model: KIMI_2_7_CODER_MODEL,
-              choices: [
-                {
-                  index: 0,
-                  delta: { role: 'assistant', content: 'ok' },
-                  finish_reason: null,
-                },
-              ],
-            })}\n\n`,
-          ),
-        )
-        controller.enqueue(
-          new TextEncoder().encode(
-            `data: ${JSON.stringify({
-              id: 'chatcmpl-kimi27-ws2',
-              model: KIMI_2_7_CODER_MODEL,
-              choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
-            })}\n\n`,
-          ),
-        )
-        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
-        controller.close()
-      },
-    })
+    const makeStream = () =>
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode(
+              `data: ${JSON.stringify({
+                id: 'chatcmpl-kimi27-ws2',
+                model: KIMI_2_7_CODER_MODEL,
+                choices: [
+                  {
+                    index: 0,
+                    delta: { role: 'assistant', content: 'ok' },
+                    finish_reason: null,
+                  },
+                ],
+              })}\n\n`,
+            ),
+          )
+          controller.enqueue(
+            new TextEncoder().encode(
+              `data: ${JSON.stringify({
+                id: 'chatcmpl-kimi27-ws2',
+                model: KIMI_2_7_CODER_MODEL,
+                choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+              })}\n\n`,
+            ),
+          )
+          controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+          controller.close()
+        },
+      })
 
     const client = new OpenAICompatInferenceClient({
       baseURL: 'https://api.noumena.com',
@@ -2881,7 +2899,7 @@ describe('OpenAICompatInferenceClient', () => {
           request: args.request as Record<string, unknown>,
           headers: args.headers,
         })
-        return new Response(stream, { headers: { 'request-id': 'req-kimi27-ws2' } })
+        return new Response(makeStream(), { headers: { 'request-id': 'req-kimi27-ws2' } })
       },
     })
 
@@ -2900,6 +2918,23 @@ describe('OpenAICompatInferenceClient', () => {
     expect(wsCalls[0]?.url).toBe('https://api.noumena.com/v1/chat/completions/ws/v2')
     expect(wsCalls[0]?.request.model).toBe(KIMI_2_7_CODER_MODEL)
     expect(wsCalls[0]?.headers.get('x-noumena-model')).toBe('kimi-k25')
+
+    const dsv4Operation = client.createMessage({
+      model: 'dsv4-flash',
+      stream: true,
+      max_tokens: 8,
+      messages: [{ role: 'user', content: 'hello' }],
+    } as never)
+    const dsv4WithResponse = await dsv4Operation.withResponse()
+    for await (const _event of dsv4WithResponse.data as AsyncIterable<
+      Record<string, unknown>
+    >) {
+      // Drain the stream so the injected transport runs to completion.
+    }
+
+    expect(wsCalls[1]?.url).toBe('https://api.noumena.com/v1/chat/completions/ws/v2')
+    expect(wsCalls[1]?.request.model).toBe(DEEPSEEK_V4_FLASH_MODEL)
+    expect(wsCalls[1]?.headers.get('x-noumena-model')).toBe('dsv4-flash')
   })
 
   it('falls back to SSE when WS v2 transport setup fails', async () => {

@@ -3,6 +3,8 @@ import { getContextWindowForModel, getModelMaxOutputTokens } from './context.js'
 import {
   DEEPSEEK_V4_FLASH_MAX_PROMPT_TOKENS,
   DEEPSEEK_V4_FLASH_MODEL,
+  GLM_5_2_1M_MAX_PROMPT_TOKENS,
+  GLM_5_2_1M_MODEL,
   GLM_5_2_MAX_PROMPT_TOKENS,
   GLM_5_2_MODEL,
   KIMI_2_7_CODER_MODEL,
@@ -30,8 +32,20 @@ describe('NCode managed model token contracts', () => {
     ['glm alias', 'glm-5.2'],
     ['glm compact alias', 'glm52'],
     ['glm model', GLM_5_2_MODEL],
-  ])('%s uses the GLM 5.2 1M prompt budget', (_label, model) => {
+  ])('%s uses the default GLM 5.2 managed prompt and sequence token contract', (_label, model) => {
     expect(getContextWindowForModel(model)).toBe(GLM_5_2_MAX_PROMPT_TOKENS)
+    expect(getModelMaxOutputTokens(model)).toEqual({
+      default: NCODE_MANAGED_MODEL_MAX_TOKENS,
+      upperLimit: NCODE_MANAGED_MODEL_MAX_TOKENS,
+    })
+  })
+
+  test.each([
+    ['glm explicit 1m alias', 'glm-5.2[1m]'],
+    ['glm compact explicit 1m alias', 'glm52[1m]'],
+    ['glm explicit 1m model', GLM_5_2_1M_MODEL],
+  ])('%s uses the explicit GLM 5.2 1M prompt budget', (_label, model) => {
+    expect(getContextWindowForModel(model)).toBe(GLM_5_2_1M_MAX_PROMPT_TOKENS)
     expect(getModelMaxOutputTokens(model)).toEqual({
       default: NCODE_MANAGED_MODEL_MAX_TOKENS,
       upperLimit: NCODE_MANAGED_MODEL_MAX_TOKENS,

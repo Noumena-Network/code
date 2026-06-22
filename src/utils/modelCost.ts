@@ -20,9 +20,6 @@ import {
   firstPartyNameToCanonical,
   getCanonicalName,
   getDefaultMainLoopModelSetting,
-  getDefaultOpusModel,
-  getDefaultFlashModel,
-  getDefaultHaikuModel,
   type ModelShortName,
 } from './model/model.js'
 import {
@@ -168,11 +165,12 @@ export const MODEL_COSTS: Record<ModelShortName, ModelCosts> = {
   [firstPartyNameToCanonical(CLAUDE_OPUS_4_6_CONFIG.firstParty)]:
     COST_TIER_5_25,
 
-  // Managed first-party model pricing (GLM 5.2, Kimi K2.7, DeepSeek V4 Flash)
-  // These use the model path as the key since they don't have Claude-style config entries.
-  [GLM_5_2_MODEL]: COST_GLM_52,
-  [KIMI_2_7_CODER_MODEL]: COST_KIMI_K27,
-  [DEEPSEEK_V4_FLASH_MODEL]: COST_DSV4_FLASH,
+  // Managed first-party model pricing (GLM 5.2, Kimi K2.7, DeepSeek V4 Flash).
+  // getModelCosts() indexes by getCanonicalName(model), so path-shaped model
+  // IDs must be keyed by the same canonical form as runtime lookups.
+  [firstPartyNameToCanonical(GLM_5_2_MODEL)]: COST_GLM_52,
+  [firstPartyNameToCanonical(KIMI_2_7_CODER_MODEL)]: COST_KIMI_K27,
+  [firstPartyNameToCanonical(DEEPSEEK_V4_FLASH_MODEL)]: COST_DSV4_FLASH,
 }
 
 /**

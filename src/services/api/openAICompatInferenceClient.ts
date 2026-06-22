@@ -229,7 +229,7 @@ const OPENAI_COMPAT_REASONING_TRANSPORT_ENV =
   'NOUMENA_OPENAI_COMPAT_REASONING_TRANSPORT'
 
 function normalizeOpenAICompatModelForAPI(model: string): string {
-  return resolveNCodeManagedModel(model)?.model ?? model.replace(/\[(1|2)m\]/gi, '')
+  return (resolveNCodeManagedModel(model)?.model ?? model).replace(/\[(1|2)m\]/gi, '')
 }
 
 function getNoumenaModelRoutingHeader(model: string): string | undefined {
@@ -1593,6 +1593,7 @@ export class OpenAICompatInferenceClient implements InferenceClient {
     init?: {
       signal?: AbortSignal
       headers?: HeadersInit
+      model?: string
     },
   ): Promise<Response> {
     const headers = new Headers(this.options.headers)
@@ -1608,13 +1609,16 @@ export class OpenAICompatInferenceClient implements InferenceClient {
       typeof body.model === 'string'
         ? body.model
         : undefined
-    const routingModel = bodyModel ? getNoumenaModelRoutingHeader(bodyModel) : undefined
+    const routingHeaderModel = init?.model ?? bodyModel
+    const routingModel = routingHeaderModel
+      ? getNoumenaModelRoutingHeader(routingHeaderModel)
+      : undefined
     if (routingModel) {
       headers.set('x-noumena-model', routingModel)
     }
     const url =
-      bodyModel
-        ? this.buildURLForModel(path, bodyModel)
+      routingHeaderModel
+        ? this.buildURLForModel(path, routingHeaderModel)
         : this.buildURL(path)
     try {
       return await this.fetchImpl(url, {
@@ -1698,8 +1702,8 @@ export class OpenAICompatInferenceClient implements InferenceClient {
     const wsV2Transport = params.stream ? this.getWsV2Transport() : null
     const responsePromise = wsV2Transport
       ? wsV2Transport({
-          url: this.buildURLForModel('/v1/chat/completions/ws/v2', apiModel),
-          headers: this.buildHeaders(requestOptions, 'application/json', apiModel),
+          url: this.buildURLForModel('/v1/chat/completions/ws/v2', params.model),
+          headers: this.buildHeaders(requestOptions, 'application/json', params.model),
           request,
           signal: requestOptions?.signal,
         }).catch(error => {
@@ -1710,11 +1714,13 @@ export class OpenAICompatInferenceClient implements InferenceClient {
           return this.postJSON('/v1/chat/completions', request, {
             signal: requestOptions?.signal,
             headers: requestOptions?.headers,
+            model: params.model,
           })
         })
       : this.postJSON('/v1/chat/completions', request, {
           signal: requestOptions?.signal,
           headers: requestOptions?.headers,
+          model: params.model,
         })
 
     const operation = createInferenceOperation(responsePromise, async response => {

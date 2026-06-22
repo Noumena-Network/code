@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  calculateUSDCost,
   COST_DSV4_FLASH,
   COST_GLM_52,
   COST_KIMI_K27,
@@ -43,18 +44,28 @@ describe('managed model pricing mirrors upstream (no markup)', () => {
     expect(COST_DSV4_FLASH.promptCacheWriteTokens).toBe(0.14)
   })
 
-  test('MODEL_COSTS includes managed model IDs keyed by their full path', () => {
-    expect(MODEL_COSTS[GLM_5_2_MODEL]).toBe(COST_GLM_52)
-    expect(MODEL_COSTS[KIMI_2_7_CODER_MODEL]).toBe(COST_KIMI_K27)
-    expect(MODEL_COSTS[DEEPSEEK_V4_FLASH_MODEL]).toBe(COST_DSV4_FLASH)
+  test('MODEL_COSTS includes managed model IDs keyed by canonical name', () => {
+    expect(MODEL_COSTS[getCanonicalName(GLM_5_2_MODEL)]).toBe(COST_GLM_52)
+    expect(MODEL_COSTS[getCanonicalName(KIMI_2_7_CODER_MODEL)]).toBe(COST_KIMI_K27)
+    expect(MODEL_COSTS[getCanonicalName(DEEPSEEK_V4_FLASH_MODEL)]).toBe(COST_DSV4_FLASH)
   })
 
-  test('managed costs resolve via getCanonicalName as a fallback path', () => {
-    // The lookup uses the model path literal as the canonical key. Make
-    // sure getCanonicalName does not "fix" the path into something that
-    // misses the MODEL_COSTS entry.
-    expect(MODEL_COSTS[getCanonicalName(GLM_5_2_MODEL)] ?? MODEL_COSTS[GLM_5_2_MODEL]).toBe(COST_GLM_52)
-    expect(MODEL_COSTS[getCanonicalName(KIMI_2_7_CODER_MODEL)] ?? MODEL_COSTS[KIMI_2_7_CODER_MODEL]).toBe(COST_KIMI_K27)
-    expect(MODEL_COSTS[getCanonicalName(DEEPSEEK_V4_FLASH_MODEL)] ?? MODEL_COSTS[DEEPSEEK_V4_FLASH_MODEL]).toBe(COST_DSV4_FLASH)
+  test('calculateUSDCost uses managed model prices instead of fallback pricing', () => {
+    const usage = {
+      input_tokens: 1_000_000,
+      output_tokens: 1_000_000,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+    }
+
+    expect(calculateUSDCost(GLM_5_2_MODEL, usage)).toBe(
+      COST_GLM_52.inputTokens + COST_GLM_52.outputTokens,
+    )
+    expect(calculateUSDCost(KIMI_2_7_CODER_MODEL, usage)).toBe(
+      COST_KIMI_K27.inputTokens + COST_KIMI_K27.outputTokens,
+    )
+    expect(calculateUSDCost(DEEPSEEK_V4_FLASH_MODEL, usage)).toBe(
+      COST_DSV4_FLASH.inputTokens + COST_DSV4_FLASH.outputTokens,
+    )
   })
 })

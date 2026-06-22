@@ -277,6 +277,29 @@ export function getDefaultMainLoopModel(): ModelName {
  */
 export function firstPartyNameToCanonical(name: ModelName): ModelShortName {
   name = name.toLowerCase()
+  if (
+    name.includes('zai-org__glm-5.2-fp8') ||
+    name.includes('zai-org/glm-5.2-fp8') ||
+    name.includes('glm-5.2')
+  ) {
+    return 'glm-5.2'
+  }
+  if (
+    name.includes('moonshotai__kimi-k2.7-code') ||
+    name.includes('moonshotai/kimi-k2.7-code') ||
+    name.includes('kimi-2.7-coder') ||
+    name.includes('kimi-k2.7-code')
+  ) {
+    return 'kimi-2.7-coder'
+  }
+  if (
+    name.includes('deepseek-ai__deepseek-v4-flash') ||
+    name.includes('deepseek-ai/deepseek-v4-flash') ||
+    name.includes('deepseek-v4-flash') ||
+    name.includes('dsv4-flash')
+  ) {
+    return 'deepseek-v4-flash'
+  }
   // Special cases for Claude 4+ models to differentiate versions
   // Order matters: check more specific versions first (4-5 before 4)
   if (name.includes('claude-opus-4-6')) {
@@ -520,6 +543,11 @@ export function parseUserSpecifiedModel(
   const modelString = has1mTag
     ? normalizedModel.replace(/\[1m]$/i, '').trim()
     : normalizedModel
+
+  const exactNcodeModel = resolveNCodeManagedModel(normalizedModel)
+  if (exactNcodeModel) {
+    return exactNcodeModel.model
+  }
 
   if (isModelAlias(modelString)) {
     switch (modelString) {

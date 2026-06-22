@@ -24,7 +24,11 @@ export const NCODE_MANAGED_MODEL_MAX_TOKENS = 256_000
 export const KIMI_2_7_CODER_BASE_URL = 'https://api.noumena.com'
 export const KIMI_2_7_CODER_MODEL = '/data/models/hf/moonshotai__Kimi-K2.7-Code'
 export const GLM_5_2_MODEL = '/data/models/hf/zai-org__GLM-5.2-FP8'
-export const GLM_5_2_MAX_PROMPT_TOKENS = 1_000_000
+export const GLM_5_2_1M_MODEL = `${GLM_5_2_MODEL}[1m]`
+export const GLM_5_2_MAX_PROMPT_TOKENS = NCODE_MANAGED_MODEL_MAX_PROMPT_TOKENS
+export const GLM_5_2_MAX_SEQUENCE_TOKENS = NCODE_MANAGED_MODEL_MAX_SEQUENCE_TOKENS
+export const GLM_5_2_1M_MAX_PROMPT_TOKENS = 1_000_000
+export const GLM_5_2_1M_MAX_TOKENS = NCODE_MANAGED_MODEL_MAX_TOKENS
 export const DEEPSEEK_V4_FLASH_MODEL =
   '/data/models/hf/deepseek-ai__DeepSeek-V4-Flash'
 export const DEEPSEEK_V4_FLASH_MAX_PROMPT_TOKENS = 1_000_000
@@ -52,6 +56,28 @@ export const NCODE_MANAGED_MODEL_PROFILES = [
     contextWindow: NCODE_MANAGED_MODEL_MAX_PROMPT_TOKENS,
     defaultMaxTokens: NCODE_MANAGED_MODEL_MAX_TOKENS,
     upperMaxTokensLimit: NCODE_MANAGED_MODEL_MAX_TOKENS,
+    baseUrl: KIMI_2_7_CODER_BASE_URL,
+  },
+  {
+    primaryAlias: 'glm-5.2[1m]',
+    aliases: [
+      'glm52[1m]',
+      'glm-5.2[1m]',
+      'glm 5.2[1m]',
+      'glm-5.2-fp8[1m]',
+      'glm52-fp8[1m]',
+      'zai-org/glm-5.2-fp8[1m]',
+      'zai-org__glm-5.2-fp8[1m]',
+    ] as const,
+    model: GLM_5_2_1M_MODEL,
+    routingModel: 'glm52-1m',
+    label: 'GLM 5.2 [1M]',
+    description: 'Production GLM 5.2 coding model with 1M context',
+    defaultEffortLevel: 'high',
+    supportsMaxEffort: false,
+    contextWindow: GLM_5_2_1M_MAX_PROMPT_TOKENS,
+    defaultMaxTokens: NCODE_MANAGED_MODEL_MAX_TOKENS,
+    upperMaxTokensLimit: GLM_5_2_1M_MAX_TOKENS,
     baseUrl: KIMI_2_7_CODER_BASE_URL,
   },
   {
@@ -109,9 +135,14 @@ export function resolveNCodeManagedModel(
 ): NCodeManagedModelProfile | undefined {
   if (!model) return undefined
   const normalized = model.trim().toLowerCase()
-  return NCODE_MANAGED_MODEL_PROFILES.find(profile => {
+  const exactMatch = NCODE_MANAGED_MODEL_PROFILES.find(profile => {
     if (normalized === profile.model.toLowerCase()) return true
     if ((profile.aliases as readonly string[]).includes(normalized)) return true
+    return false
+  })
+  if (exactMatch) return exactMatch
+
+  return NCODE_MANAGED_MODEL_PROFILES.find(profile => {
     return normalized.includes(profile.model.toLowerCase())
   })
 }
