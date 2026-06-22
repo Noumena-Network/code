@@ -39,7 +39,10 @@ type FakeTerminal = {
 type InkRecoveryInstance = {
   enterAlternateScreen: () => void
   exitAlternateScreen: () => void
-  forceRedraw: (options?: { clearBeforePaint?: boolean }) => void
+  forceRedraw: (options?: {
+    clearBeforePaint?: boolean
+    forceHomeRepaint?: boolean
+  }) => void
   reassertTerminalModes: (includeAltScreen?: boolean) => void
   handleResume: () => void
   displayCursor: { x: number; y: number } | null
@@ -464,6 +467,63 @@ describe('Ink alt-screen recovery behavior', () => {
     expect(output.includes(ENTER_ALT_SCREEN)).toBe(false)
     expect(output.includes(EXIT_ALT_SCREEN)).toBe(false)
     expect(output.includes('\u001b[3J')).toBe(false)
+  })
+
+  it('main-screen forceRedraw with forceHomeRepaint clears viewport remainder on short output without pushing scrollback', async () => {
+    const terminal = createFakeTerminal()
+    const frames: FrameEvent[] = []
+
+    liveRoot = await createRoot({
+      stdout: terminal.stdout,
+      stdin: terminal.stdin,
+      stderr: terminal.stderr,
+      exitOnCtrlC: false,
+      patchConsole: false,
+      onFrame: event => {
+        frames.push(event)
+      },
+    })
+
+    liveRoot.render(<MainScreenRecoveryHarness />)
+
+    await waitFor(
+      () => instances.get(terminal.stdout) !== undefined && frames.length > 0,
+      'mounted Ink root never reached the first main-screen frame',
+    )
+
+    const ink = instances.get(terminal.stdout)! as unknown as InkRecoveryInstance
+    let frameCount = frames.length
+    terminal.clearOutput()
+
+    ink.forceRedraw({ forceHomeRepaint: true })
+
+    await waitFor(
+      () => frames.length > frameCount && terminal.getChunks().length > 0,
+      'first forceHomeRepaint never produced an immediate repaired frame',
+    )
+
+    const firstOutput = terminal.getOutput()
+    expect(firstOutput.includes('main-screen-body')).toBe(true)
+    expect(firstOutput.includes('\u001b[J')).toBe(true)
+    expect(firstOutput.includes('\u001b[2J')).toBe(false)
+    expect(firstOutput.includes('\u001b[3J')).toBe(false)
+
+    frameCount = frames.length
+    terminal.clearOutput()
+
+    ink.forceRedraw({ forceHomeRepaint: true })
+
+    await waitFor(
+      () => frames.length > frameCount && terminal.getChunks().length > 0,
+      'second forceHomeRepaint never produced an immediate repaired frame',
+    )
+
+    const secondOutput = terminal.getOutput()
+    const matches = secondOutput.match(/main-screen-body/g) ?? []
+    expect(matches.length).toBe(1)
+    expect(secondOutput.includes('\u001b[J')).toBe(true)
+    expect(secondOutput.includes('\u001b[2J')).toBe(false)
+    expect(secondOutput.includes('\u001b[3J')).toBe(false)
   })
 
   it('alt-screen forceRedraw repaints in-place without an out-of-band clear or alt re-entry', async () => {

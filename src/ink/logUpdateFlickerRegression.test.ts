@@ -891,6 +891,41 @@ describe('LogUpdate flicker regressions', () => {
     expect(written.includes(ERASE_SCROLLBACK)).toBe(false)
   })
 
+  it('forces eraseToEndOfScreen on identical-dimension main-screen repaints when forceClearViewportRemainder is set', () => {
+    // Regression: shouldClearViewportRemainder returns false (empty row-scan
+    // range) on identical-dimension main-screen repaints, leaving stale cells
+    // below content when React state mutates between renders (e.g. ctrl+l
+    // spam). forceClearViewportRemainder overrides and emits ESC[J without
+    // ESC[2J that would push content into scrollback.
+    const log = new LogUpdate({ isTTY: true, stylePool })
+    const prev = makeFrame({
+      lines: ['OLD1', 'OLD2'],
+      viewportWidth: 10,
+      viewportHeight: 5,
+      cursorY: 2,
+    })
+    const next = makeFrame({
+      lines: ['NEW1', 'NEW2'],
+      viewportWidth: 10,
+      viewportHeight: 5,
+      cursorY: 2,
+    })
+
+    const baseline = log.renderMainScreenRepaintFromHome(next, prev, {
+      clearRowsBeforeWrite: true,
+    })
+    expect(serializeDiff(baseline).includes(eraseToEndOfScreen())).toBe(false)
+
+    const forced = log.renderMainScreenRepaintFromHome(next, prev, {
+      clearRowsBeforeWrite: true,
+      forceClearViewportRemainder: true,
+    })
+    const written = serializeDiff(forced)
+    expect(written.includes(eraseToEndOfScreen())).toBe(true)
+    expect(written.includes(ERASE_SCREEN)).toBe(false)
+    expect(written).toContain('NEW1')
+  })
+
   it('can recover alt-screen content from home without a terminal-wide erase', () => {
     const log = new LogUpdate({ isTTY: true, stylePool })
     const next = makeFrame({
