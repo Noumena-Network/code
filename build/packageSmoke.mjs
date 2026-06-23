@@ -21,6 +21,12 @@ const FORBIDDEN_MANIFEST_KEYS = [
 const EXPECTED_IMAGE_PROCESSOR_FALLBACK_WARNING =
   'Native image processor not available, falling back to sharp';
 
+// These are smoke-test budgets, not product latency SLOs. They catch broken
+// startup paths while allowing GitHub-hosted macOS x64 cold starts enough room
+// to avoid millisecond-level flakes after safe whitespace-only packaging.
+const VERSION_CHECK_BUDGET_MS = 3_000;
+const HELP_CHECK_BUDGET_MS = 4_000;
+
 function parseArgs(argv) {
   const args = {
     outDir: undefined,
@@ -143,9 +149,9 @@ async function main() {
           `Compiled binary version output did not match expected contract: ${versionResult.stdout}`,
         );
       }
-      if (versionResult.elapsedMs > 2_000) {
+      if (versionResult.elapsedMs > VERSION_CHECK_BUDGET_MS) {
         throw new Error(
-          `Compiled binary --version exceeded fast-path budget: ${versionResult.elapsedMs}ms`,
+          `Compiled binary --version exceeded fast-path budget (${VERSION_CHECK_BUDGET_MS}ms): ${versionResult.elapsedMs}ms`,
         );
       }
 
@@ -163,9 +169,9 @@ async function main() {
         .map(line => line.trimEnd())
         .filter(line => line.trim().length > 0);
       expectLinesInOrder(helpLines, ['Usage: ncode', 'Options:'], 'compiled binary --help output');
-      if (helpResult.elapsedMs > 4_000) {
+      if (helpResult.elapsedMs > HELP_CHECK_BUDGET_MS) {
         throw new Error(
-          `Compiled binary --help exceeded fast-path budget: ${helpResult.elapsedMs}ms`,
+          `Compiled binary --help exceeded fast-path budget (${HELP_CHECK_BUDGET_MS}ms): ${helpResult.elapsedMs}ms`,
         );
       }
     }
