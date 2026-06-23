@@ -19,9 +19,24 @@ const outFile = path.join(outDir, 'cli.js');
 const bundledEntryFile = path.join(outDir, 'src', 'entrypoints', 'cli.js');
 const bundledEntryMapFile = `${bundledEntryFile}.map`;
 const outMapFile = `${outFile}.map`;
+// Identifier mangling (`identifiers: true`) is disabled because Bun's bundler
+// renamer produces identifier collisions in this codebase: two distinct free
+// variables can be renamed to the same mangled identifier, so a call like
+// `loadProviders(getProviders)` compiles to `H4(H4)` and crashes at runtime
+// with "H4 is not a function" inside a React useMemo path — issue #36.
+//
+// Upstream tracking: oven-sh/bun#28742 (collision persists after #14585
+// workaround, 1.3.11+). Fix attempt oven-sh/bun#30272 is open and not merged
+// as of Bun 1.3.14. The collision is fragile — depends on total identifier
+// count and import ordering across the whole bundle, so any future code
+// change can re-trigger it. Whitespace-only minify is the safe profile
+// until #30272 merges AND the guard test
+// (build/minifierCollisionGuard.test.ts) confirms no collisions.
+//
+// Bundle size cost is ~5-10% on the JS portion, negligible against the
+// ~90MB Bun runtime baked into the compiled binary.
 export const SAFE_STANDALONE_MINIFY = {
   whitespace: true,
-  identifiers: true,
 };
 const vendorSources = [
   {

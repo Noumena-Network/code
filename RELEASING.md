@@ -49,6 +49,11 @@ Build-only fixes that block user build (e.g. native module build failures across
 7. Open a PR. Do not tag or publish until the PR merges.
 8. After merge, create and push tag `vX.Y.Z` on the merge commit on `main`. The GitHub Actions release workflow validates the tag, builds Linux and macOS artifacts, and publishes the GitHub release. Release notes are pulled from the `## [VERSION]` section verbatim.
 
+### Build pipeline invariants
+
+- **Bun pin.** `BUN_VERSION` is pinned in `.github/workflows/ci.yml` and `.github/workflows/release.yml`. Bump intentionally; do not regress to a version with a known bundler bug. As of Bun 1.3.14, identifier mangling is disabled in `SAFE_STANDALONE_MINIFY` (`build/build.mjs`) because of [oven-sh/bun#28742](https://github.com/oven-sh/bun/issues/28742) — the bundler renamer produces scope-analysis collisions that crash the binary at runtime. Re-enabling `identifiers: true` is gated on the upstream fix PR ([oven-sh/bun#30272](https://github.com/oven-sh/bun/pull/30272)) merging *and* the CI minifier collision guard (`bun run test:minifier-guard`) staying green.
+- **Minifier collision guard.** `bun run test:minifier-guard` builds the bundle with the unsafe `{ whitespace: true, identifiers: true }` profile and asserts no parameter-self-call collision pattern exists. Runs in CI as the `Minifier collision guard` job on every PR and on `main`. A failure here means production builds will crash for users; do not merge.
+
 The release workflow currently publishes:
 
 - `ncode-VERSION-linux-x64.zip` from `ubuntu-24.04` (`bun-linux-x64`)

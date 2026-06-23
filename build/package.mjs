@@ -195,13 +195,12 @@ export async function buildCompiledPackage(options = {}) {
     outfile: binaryPath,
     buildMode: parsed.buildMode,
     target: targetInfo.compileTarget,
-    // Bun 1.3.10 miscompiles this CLI when syntax minification is combined
-    // with whitespace minification. The emitted bundle fuses `return` with
-    // helper identifiers in the workflow-tool closure (for example
-    // `return __toCommonJS(...)` becomes `return__toCommonJS(...)`, and
-    // `return dA(...)` becomes `returndA(...)`), which breaks `--help`
-    // at runtime. whitespace+identifiers is currently the smallest
-    // known safe profile for the real single-executable CLI.
+    // Bun's bundler renamer produces identifier collisions when
+    // `identifiers: true` is enabled (oven-sh/bun#28742, fix not merged as
+    // of 1.3.14): two distinct free variables get the same mangled name and
+    // the compiled binary crashes at runtime with "X is not a function".
+    // Whitespace-only is the safe profile; see SAFE_STANDALONE_MINIFY in
+    // build.mjs for the full citation and the re-enable gate.
     minify: SINGLE_EXECUTABLE_MINIFY,
   });
 

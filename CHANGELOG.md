@@ -12,6 +12,7 @@ See [RELEASING.md](./RELEASING.md) for the release process and version-bump poli
 ### Added
 
 - GitHub Actions now build, attest, and publish Linux and macOS release artifacts from version tags on `main`.
+- CI minifier collision guard (`bun run test:minifier-guard`) gates re-enabling Bun identifier mangling on proof that [oven-sh/bun#28742](https://github.com/oven-sh/bun/issues/28742) is fixed upstream.
 - Load `AGENTS.md` and `.agents/` instructions into context via the `agentsmd` loader ([#15](https://github.com/Noumena-Network/code/pull/15))
 - GLM 5.2 managed first-party model profile and tier routing ([#17](https://github.com/Noumena-Network/code/pull/17))
 - GLM 5.2 promoted to the first-party default model ([#21](https://github.com/Noumena-Network/code/pull/21))
@@ -19,6 +20,7 @@ See [RELEASING.md](./RELEASING.md) for the release process and version-bump poli
 ### Changed
 
 - Public first-party builds now default to Kimi K2.7 Coder ([#4](https://github.com/Noumena-Network/code/pull/4))
+- Compiled binaries now use whitespace-only minification. Identifier mangling is disabled because Bun's bundler renamer produces scope-analysis collisions that crash the binary at runtime with `X is not a function` ([#36](https://github.com/Noumena-Network/code/issues/36), [oven-sh/bun#28742](https://github.com/oven-sh/bun/issues/28742)). Bun pinned to 1.3.14 in CI and release.
 
 ### Fixed
 
