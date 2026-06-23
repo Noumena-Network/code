@@ -47,9 +47,19 @@ Build-only fixes that block user build (e.g. native module build failures across
 5. Add a comparison link at the bottom of `CHANGELOG.md` for the new tag, e.g. `[0.2.0]: https://github.com/Noumena-Network/code/compare/v0.1.0...v0.2.0`.
 6. Commit on a `release/VERSION` branch with the message `chore(release): vX.Y.Z`.
 7. Open a PR. Do not tag or publish until the PR merges.
-8. After merge, tag `vX.Y.Z` on the merge commit on `main` and cut the GitHub release. The release notes pull from the `## [VERSION]` section verbatim.
+8. After merge, create and push tag `vX.Y.Z` on the merge commit on `main`. The GitHub Actions release workflow validates the tag, builds Linux and macOS artifacts, and publishes the GitHub release. Release notes are pulled from the `## [VERSION]` section verbatim.
 
-If a revert is needed between tag and publish, delete the tag, revert the release commit, and re-cut.
+The release workflow currently publishes:
+
+- `ncode-VERSION-linux-x64.zip` from `ubuntu-24.04` (`bun-linux-x64`)
+- `ncode-VERSION-darwin-arm64.zip` from `macos-14` (`bun-darwin-arm64`)
+- `ncode-VERSION-darwin-x64.zip` from `macos-15-intel` (`bun-darwin-x64`)
+- matching `.sha256` checksum files and `.manifest.json` files for each artifact
+- GitHub artifact attestations for the release assets
+
+Tags must point to commits reachable from `origin/main`, must match `package.json` (`v${version}`), and must have a matching `CHANGELOG.md` release section.
+
+If a revert is needed between tag and publish, delete the tag, revert the release commit, and re-cut. If a published release is bad, create a new patch release rather than mutating the released asset in place.
 
 ## Pre-1.0 Expectations
 

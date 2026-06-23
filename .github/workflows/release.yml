@@ -1,0 +1,229 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to publish, for example v0.2.0'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  BUN_VERSION: 1.3.10
+
+jobs:
+  preflight:
+    name: Release preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Validate tag, version, changelog, and main ancestry
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            tag="${{ inputs.tag }}"
+            git fetch --force origin "refs/tags/${tag}:refs/tags/${tag}"
+            git checkout --detach "refs/tags/${tag}"
+          fi
+
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tags must look like vX.Y.Z or vX.Y.Z-prerelease; got: $tag" >&2
+            exit 1
+          fi
+
+          version="${tag#v}"
+          package_version="$(node -p "require('./package.json').version")"
+          if [[ "$package_version" != "$version" ]]; then
+            echo "Tag $tag does not match package.json version $package_version" >&2
+            exit 1
+          fi
+
+          git fetch origin main --tags
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "Release tag $tag must point to a commit reachable from origin/main" >&2
+            exit 1
+          fi
+
+          if ! grep -Fq "## [$version] - " CHANGELOG.md; then
+            echo "CHANGELOG.md must contain a released section for $version" >&2
+            exit 1
+          fi
+
+          {
+            echo "tag=$tag"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build / ${{ matrix.name }}
+    needs: preflight
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            runner: ubuntu-24.04
+            target: bun-linux-x64
+          - name: darwin-arm64
+            runner: macos-14
+            target: bun-darwin-arm64
+          - name: darwin-x64
+            runner: macos-15-intel
+            target: bun-darwin-x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.tag }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache Bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-${{ runner.arch }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-bun-
+
+      - name: Cache Cargo dependencies and native targets
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/git
+            ~/.cargo/registry
+            native/markdown-renderer-napi/target
+            native/openai-compat-ws-v2-napi/target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('native/**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
+
+      - name: Set up Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build and smoke-test release package
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="$RUNNER_TEMP/ncode-release"
+          bun build/packageSmoke.mjs \
+            --build-mode external \
+            --target "${{ matrix.target }}" \
+            --out-dir "$OUT_DIR" \
+            --keep-output
+
+          version="${{ needs.preflight.outputs.version }}"
+          slug="${{ matrix.target }}"
+          slug="${slug#bun-}"
+          base="ncode-${version}-${slug}"
+          zip_path="$OUT_DIR/${base}.zip"
+          manifest_path="$OUT_DIR/${base}/manifest.json"
+
+          test -f "$zip_path"
+          test -f "$manifest_path"
+
+          shasum -a 256 "$zip_path" > "$OUT_DIR/${base}.zip.sha256"
+          cp "$manifest_path" "$OUT_DIR/${base}.manifest.json"
+          mkdir -p "$GITHUB_WORKSPACE/release-assets"
+          cp "$zip_path" "$OUT_DIR/${base}.zip.sha256" "$OUT_DIR/${base}.manifest.json" "$GITHUB_WORKSPACE/release-assets/"
+
+      - name: Generate artifact attestations
+        uses: actions/attest@v4
+        with:
+          subject-path: release-assets/*
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-${{ matrix.name }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish GitHub release
+    needs:
+      - preflight
+      - build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.tag }}
+
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-assets-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Extract release notes from CHANGELOG.md
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.preflight.outputs.version }}"
+          awk -v header="## [$version] - " '
+            index($0, header) == 1 { inside=1; next }
+            inside && index($0, "## [") == 1 { exit }
+            inside { print }
+          ' CHANGELOG.md | sed '/^[[:space:]]*$/N;/^\n$/D' > release-notes.md
+          test -s release-notes.md
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ needs.preflight.outputs.tag }}"
+          gh release create "$tag" \
+            release-assets/* \
+            --verify-tag \
+            --title "$tag" \
+            --notes-file release-notes.md

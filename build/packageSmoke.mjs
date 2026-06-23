@@ -25,6 +25,7 @@ function parseArgs(argv) {
   const args = {
     outDir: undefined,
     target: undefined,
+    buildMode: 'noumena',
     runBinaryChecks: true,
     runNativeProbe: true,
     keepOutput: false,
@@ -36,6 +37,9 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg === '--target') {
       args.target = argv[index + 1];
+      index += 1;
+    } else if (arg === '--build-mode') {
+      args.buildMode = argv[index + 1] ?? args.buildMode;
       index += 1;
     } else if (arg === '--no-run') {
       args.runBinaryChecks = false;
@@ -116,7 +120,7 @@ async function main() {
   try {
     const result = await buildCompiledPackage({
       outDir: tempRoot,
-      buildMode: 'noumena',
+      buildMode: args.buildMode,
       target: args.target,
     });
 
