@@ -190,6 +190,12 @@ async function main() {
       );
     }
 
+    if (manifest.compileOptions?.minify?.identifiers === true) {
+      throw new Error(
+        'Standalone package manifest enabled identifier minification, which is unsafe for the mounted CLI runtime (issue #36).',
+      );
+    }
+
     if (!result.securityAudit?.ok) {
       throw new Error('Compiled package did not report a successful security audit.');
     }

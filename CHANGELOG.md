@@ -22,6 +22,7 @@ See [RELEASING.md](./RELEASING.md) for the release process and version-bump poli
 
 ### Fixed
 
+- Standalone release builds now disable Bun identifier minification to avoid runtime name-collision crashes ([#36](https://github.com/Noumena-Network/code/issues/36)).
 - Native `sharp` embedding build for macOS and other non-Linux targets ([#1](https://github.com/Noumena-Network/code/pull/1))
 - Tool-call cancellation reason text on parallel tool cancellation ([#13](https://github.com/Noumena-Network/code/pull/13))
 - NCode config and credentials are now isolated from Claude Code state on disk ([#11](https://github.com/Noumena-Network/code/pull/11))

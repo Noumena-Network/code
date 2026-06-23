@@ -19,9 +19,18 @@ const outFile = path.join(outDir, 'cli.js');
 const bundledEntryFile = path.join(outDir, 'src', 'entrypoints', 'cli.js');
 const bundledEntryMapFile = `${bundledEntryFile}.map`;
 const outMapFile = `${outFile}.map`;
+// Identifier mangling (`identifiers: true`) is disabled because Bun's
+// bundler renamer can produce runtime identifier collisions in large bundles.
+// In issue #36, the standalone CLI contained `function Hg(H4, $) { const A =
+// H4(H4); ... }`, where a parameter shadowed the function binding and crashed
+// at startup with `H4 is not a function`.
+//
+// Upstream tracking: oven-sh/bun#28742 documents the same collision class, and
+// oven-sh/bun#30272 is the open compiler fix. Re-enable identifier mangling only
+// after that fix ships and packageSmoke's manifest guard is updated deliberately.
 export const SAFE_STANDALONE_MINIFY = {
   whitespace: true,
-  identifiers: true,
+  identifiers: false,
 };
 const vendorSources = [
   {

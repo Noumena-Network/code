@@ -62,7 +62,7 @@
     "test:teleport": "bun test src/utils/teleport/api.e2e.test.ts src/utils/teleport/environments.test.ts src/utils/teleport/sessionResumeValidation.test.ts src/utils/teleport.test.ts src/utils/cliDisplayCommand.test.ts src/utils/remoteSessionCliOutput.test.ts src/utils/teleportProgressOutput.test.ts src/utils/background/remote/preconditions.test.ts src/utils/background/remote/remoteSession.test.ts src/constants/product.test.ts",
     "test:remote": "bun test src/remote/appServer/remoteAppServerBYOKSession.test.ts src/remote/appServer/remoteAppServerSession.test.ts src/remote/appServer/client.test.ts src/commands/teleport/index.test.ts src/commands/remote-env/index.test.ts src/session/remoteSubmitDispatch.test.ts src/session/remoteSubmitPolicy.test.ts src/components/RemoteCallout.test.tsx"
   },
-  "packageManager": "bun@1.3.10",
+  "packageManager": "bun@1.3.14",
   "dependencies": {
     "@alcalzone/ansi-tokenize": "0.3.0",
     "@anthropic-ai/bedrock-sdk": "0.26.4",
