@@ -36,8 +36,10 @@ const STATIC_FORBIDDEN_SUBSTRINGS = [
 ];
 
 const ENV_DERIVED_FORBIDDEN_VALUE_VARS = [
-  'HOME',
+  'ANTHROPIC_API_KEY',
   'CLAUDE_CODE_OAUTH_TOKEN',
+  'NOUMENA_API_KEY',
+  'OPENAI_API_KEY',
 ];
 
 // Production defaults that are intentionally baked into the binary via
@@ -49,6 +51,40 @@ const ALLOWED_ENV_DERIVED_VALUES = new Set([
   'https://console.noumena.com',
   'Kimi 2.7 Coder',
 ]);
+
+
+function normalizeForbiddenPathValue(value) {
+  const normalized = path.resolve(value);
+  return normalized.length >= 8 ? normalized : null;
+}
+
+function collectLocalPathForbiddenSubstrings() {
+  const candidates = [
+    { label: 'current checkout path', value: process.cwd() },
+    { label: 'github workspace path', value: process.env.GITHUB_WORKSPACE },
+  ];
+  const seen = new Set();
+  const patterns = [];
+
+  for (const candidate of candidates) {
+    if (!candidate.value) continue;
+    const normalized = normalizeForbiddenPathValue(candidate.value);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    patterns.push({ label: candidate.label, value: normalized });
+
+    const windowsValue = normalized.replaceAll('/', '\\');
+    if (windowsValue !== normalized && !seen.has(windowsValue)) {
+      seen.add(windowsValue);
+      patterns.push({
+        label: `${candidate.label} (windows separators)`,
+        value: windowsValue,
+      });
+    }
+  }
+
+  return patterns;
+}
 
 async function walkFiles(rootPath, currentPath = rootPath) {
   const entries = await readdir(currentPath, { withFileTypes: true });
@@ -182,6 +218,7 @@ export async function auditCompiledPackage({
 
   const forbiddenSubstrings = [
     ...STATIC_FORBIDDEN_SUBSTRINGS,
+    ...collectLocalPathForbiddenSubstrings(),
     ...collectEnvDerivedForbiddenSubstrings(),
   ];
 
