@@ -465,7 +465,7 @@ function getLanguageFromPath(filePath: string): string | null {
   return EXTENSION_TO_LANGUAGE[ext] || null
 }
 
-function extractToolStats(log: LogOption): {
+export function extractToolStats(log: LogOption): {
   toolCounts: Record<string, number>
   languages: Record<string, number>
   gitCommits: number
@@ -553,7 +553,8 @@ function extractToolStats(log: LogOption): {
             const input = (block as { input?: Record<string, unknown> }).input
 
             if (input) {
-              const filePath = (input.file_path as string) || ''
+              const filePath =
+                typeof input.file_path === 'string' ? input.file_path : ''
               if (filePath) {
                 const lang = getLanguageFromPath(filePath)
                 if (lang) {
@@ -566,8 +567,10 @@ function extractToolStats(log: LogOption): {
               }
 
               if (toolName === 'Edit') {
-                const oldString = (input.old_string as string) || ''
-                const newString = (input.new_string as string) || ''
+                const oldString =
+                  typeof input.old_string === 'string' ? input.old_string : ''
+                const newString =
+                  typeof input.new_string === 'string' ? input.new_string : ''
                 for (const change of diffLines(oldString, newString)) {
                   if (change.added) linesAdded += change.count || 0
                   if (change.removed) linesRemoved += change.count || 0
@@ -576,13 +579,15 @@ function extractToolStats(log: LogOption): {
 
               // Track lines from Write tool (all added)
               if (toolName === 'Write') {
-                const writeContent = (input.content as string) || ''
+                const writeContent =
+                  typeof input.content === 'string' ? input.content : ''
                 if (writeContent) {
                   linesAdded += countCharInString(writeContent, '\n') + 1
                 }
               }
 
-              const command = (input.command as string) || ''
+              const command =
+                typeof input.command === 'string' ? input.command : ''
               if (command.includes('git commit')) gitCommits++
               if (command.includes('git push')) gitPushes++
             }
