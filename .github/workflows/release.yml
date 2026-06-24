@@ -40,6 +40,7 @@ jobs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
       publish: ${{ steps.release.outputs.publish }}
+      checkout_ref: ${{ steps.release.outputs.checkout_ref }}
 
     steps:
       - name: Checkout
@@ -98,10 +99,13 @@ jobs:
             exit 1
           fi
 
+          checkout_ref="$(git rev-parse HEAD)"
+
           {
             echo "tag=$tag"
             echo "version=$version"
             echo "publish=$publish"
+            echo "checkout_ref=$checkout_ref"
           } >> "$GITHUB_OUTPUT"
 
   build:
@@ -132,7 +136,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.preflight.outputs.tag }}
+          ref: ${{ needs.preflight.outputs.checkout_ref }}
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -238,7 +242,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.preflight.outputs.tag }}
+          ref: ${{ needs.preflight.outputs.checkout_ref }}
 
       - name: Download release assets
         uses: actions/download-artifact@v4
