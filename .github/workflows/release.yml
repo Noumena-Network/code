@@ -224,7 +224,7 @@ jobs:
     steps:
       - name: Report dry-run result
         run: |
-          echo "Release dry-run passed for version ${{ needs.preflight.outputs.version }} at ref ${{ github.sha }}."
+          echo "Release dry-run passed for version ${{ needs.preflight.outputs.version }} at ref ${{ needs.preflight.outputs.checkout_ref }}."
           echo "Artifacts were built and uploaded to this workflow run; no GitHub release was published."
 
   publish:
