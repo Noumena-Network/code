@@ -38,6 +38,23 @@ Each entry is one line, in past tense, ending with the PR link in parentheses. I
 
 Build-only fixes that block user build (e.g. native module build failures across a platform) do get an entry under Fixed — they affect whether the package runs at all.
 
+
+## Branch Protection
+
+`main` is protected. Changes must merge through pull requests. The required package-smoke checks are:
+
+- `Package smoke / linux-x64`
+- `Package smoke / darwin-arm64`
+- `Package smoke / darwin-x64`
+
+The branch also requires an approving review, dismisses stale approvals after new pushes, requires the branch to be up to date with `main`, blocks force-pushes/deletions, and requires conversation resolution. Do not direct-push release fixes to `main`.
+
+## Release Dry-Run
+
+Before cutting a public release tag, run the `Release` workflow manually with `publish=false` and `ref=main` (or the release PR merge commit). This builds every release artifact and uploads them to the workflow run without publishing a GitHub release.
+
+A release is not ready to tag until the dry-run succeeds for all release targets.
+
 ## Cutting a Release
 
 1. Confirm `## [Unreleased]` in `CHANGELOG.md` reflects every merged PR since the last release. Pull from the PR history if anything is missing.
@@ -47,7 +64,8 @@ Build-only fixes that block user build (e.g. native module build failures across
 5. Add a comparison link at the bottom of `CHANGELOG.md` for the new tag, e.g. `[0.2.0]: https://github.com/Noumena-Network/code/compare/v0.1.0...v0.2.0`.
 6. Commit on a `release/VERSION` branch with the message `chore(release): vX.Y.Z`.
 7. Open a PR. Do not tag or publish until the PR merges.
-8. After merge, create and push tag `vX.Y.Z` on the merge commit on `main`. The GitHub Actions release workflow validates the tag, builds Linux and macOS artifacts, and publishes the GitHub release. Release notes are pulled from the `## [VERSION]` section verbatim.
+8. After merge, run a `Release` workflow dry-run with `publish=false` on the merge commit.
+9. After the dry-run succeeds, create and push tag `vX.Y.Z` on the merge commit on `main`. The GitHub Actions release workflow validates the tag, builds Linux and macOS artifacts, and publishes the GitHub release. Release notes are pulled from the `## [VERSION]` section verbatim.
 
 The release workflow currently publishes:
 
@@ -64,3 +82,7 @@ If a revert is needed between tag and publish, delete the tag, revert the releas
 ## Pre-1.0 Expectations
 
 Until `1.0.0` is cut, the public API may change between minor versions. Callers should pin to a specific version. There is no long-term-support branch.
+
+## Known Release Limitation
+
+Native image processor status is tracked in [#42](https://github.com/Noumena-Network/code/issues/42). The current public package smoke accepts `imageProcessorMode: "sharp-fallback"` because the `image-processor-napi` package available to this OSS tree is a reserved stub, not a loadable native implementation. Release notes must not imply native image processing is active until #42 is fixed and package smoke requires `imageProcessorMode: "native"` for supported release targets.

@@ -18,6 +18,7 @@ See [RELEASING.md](./RELEASING.md) for the release process and version-bump poli
 
 ### Changed
 
+- Release workflow now supports build-only dry-runs before publishing tags, and release docs now describe required branch protection and known native image fallback status.
 - Public first-party builds now default to Kimi K2.7 Coder ([#4](https://github.com/Noumena-Network/code/pull/4))
 
 ### Fixed

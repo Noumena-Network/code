@@ -6,16 +6,26 @@ on:
       - 'v*.*.*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Existing release tag to publish, for example v0.2.0'
-        required: true
+      ref:
+        description: 'Git ref to dry-run; must be reachable from main. Ignored when publish=true and tag is set.'
+        required: false
+        default: main
         type: string
+      tag:
+        description: 'Existing release tag to publish, for example v0.2.0. Required when publish=true.'
+        required: false
+        type: string
+      publish:
+        description: 'Publish the GitHub release. Leave false for a build-only dry-run.'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && (inputs.publish && inputs.tag || inputs.ref) || github.ref_name }}
   cancel-in-progress: false
 
 env:
@@ -29,13 +39,14 @@ jobs:
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
+      publish: ${{ steps.release.outputs.publish }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish && inputs.tag || inputs.ref) || github.ref }}
 
       - name: Validate tag, version, changelog, and main ancestry
         id: release
@@ -43,28 +54,42 @@ jobs:
         run: |
           set -euo pipefail
 
-          tag="${GITHUB_REF_NAME}"
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+          publish="false"
+          tag=""
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            publish="true"
+            tag="${GITHUB_REF_NAME}"
+          elif [[ "${{ inputs.publish }}" == "true" ]]; then
+            publish="true"
             tag="${{ inputs.tag }}"
+            if [[ -z "$tag" ]]; then
+              echo "workflow_dispatch publish=true requires an existing release tag" >&2
+              exit 1
+            fi
             git fetch --force origin "refs/tags/${tag}:refs/tags/${tag}"
             git checkout --detach "refs/tags/${tag}"
           fi
 
-          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Release tags must look like vX.Y.Z or vX.Y.Z-prerelease; got: $tag" >&2
-            exit 1
-          fi
-
-          version="${tag#v}"
           package_version="$(node -p "require('./package.json').version")"
-          if [[ "$package_version" != "$version" ]]; then
-            echo "Tag $tag does not match package.json version $package_version" >&2
-            exit 1
+          if [[ "$publish" == "true" ]]; then
+            if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "Release tags must look like vX.Y.Z or vX.Y.Z-prerelease; got: $tag" >&2
+              exit 1
+            fi
+            version="${tag#v}"
+            if [[ "$package_version" != "$version" ]]; then
+              echo "Tag $tag does not match package.json version $package_version" >&2
+              exit 1
+            fi
+          else
+            version="$package_version"
+            tag="dry-run-v${version}-${GITHUB_RUN_ID}"
           fi
 
           git fetch origin main --tags
           if ! git merge-base --is-ancestor HEAD origin/main; then
-            echo "Release tag $tag must point to a commit reachable from origin/main" >&2
+            echo "Release ref must point to a commit reachable from origin/main" >&2
             exit 1
           fi
 
@@ -76,6 +101,7 @@ jobs:
           {
             echo "tag=$tag"
             echo "version=$version"
+            echo "publish=$publish"
           } >> "$GITHUB_OUTPUT"
 
   build:
@@ -168,6 +194,7 @@ jobs:
           cp "$zip_path" "$OUT_DIR/${base}.zip.sha256" "$OUT_DIR/${base}.manifest.json" "$GITHUB_WORKSPACE/release-assets/"
 
       - name: Generate artifact attestations
+        if: needs.preflight.outputs.publish == 'true'
         uses: actions/attest@v4
         with:
           subject-path: release-assets/*
@@ -180,6 +207,22 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+
+  dry-run-summary:
+    name: Release dry-run summary
+    needs:
+      - preflight
+      - build
+    if: needs.preflight.outputs.publish != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Report dry-run result
+        run: |
+          echo "Release dry-run passed for version ${{ needs.preflight.outputs.version }} at ref ${{ github.sha }}."
+          echo "Artifacts were built and uploaded to this workflow run; no GitHub release was published."
+
   publish:
     name: Publish GitHub release
     needs:
@@ -187,6 +230,7 @@ jobs:
       - build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    if: needs.preflight.outputs.publish == 'true'
     permissions:
       contents: write
 

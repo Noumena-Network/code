@@ -104,6 +104,10 @@ bun test src/path/to/file.test.ts
 
 If you do not have `tmux`, install it before running the full suite; otherwise tmux-backed integration tests will fail or be skipped depending on the local environment.
 
+## Current Release Limitations
+
+- Packaged release binaries currently use the tested `sharp` fallback path for image processing instead of `image-processor-napi`. The native package available in the OSS dependency tree is a reserved stub, not a loadable native implementation. This is tracked in [#42](https://github.com/Noumena-Network/code/issues/42).
+
 ## Build Output
 
 `bun run build` is the preferred user build. It packages the CLI as a native binary and writes artifacts under `.tmp/packages/`:
