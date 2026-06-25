@@ -1,3 +1,4 @@
+import { isInternalBuild } from '../../capabilities/static.js'
 import { getIsNonInteractiveSession } from '../../bootstrap/state.js'
 import {
   clearMockHeaders,
@@ -67,7 +68,7 @@ export const resetLimits = {
   description: 'Clear mocked rate-limit state and return to real limits',
   argumentHint: '[--verbose]',
   isEnabled: () =>
-    (process.env.NCODE_BUILD_MODE === 'noumena' || process.env.USER_TYPE === 'ant') && !getIsNonInteractiveSession(),
+    isInternalBuild() && !getIsNonInteractiveSession(),
   isHidden: true,
   supportsNonInteractive: false,
   load: () => Promise.resolve({ call }),
@@ -79,7 +80,7 @@ export const resetLimitsNonInteractive = {
   description: 'Clear mocked rate-limit state and return to real limits',
   argumentHint: '[--verbose]',
   isEnabled: () =>
-    (process.env.NCODE_BUILD_MODE === 'noumena' || process.env.USER_TYPE === 'ant') && getIsNonInteractiveSession(),
+    isInternalBuild() && getIsNonInteractiveSession(),
   isHidden: true,
   supportsNonInteractive: true,
   load: () => Promise.resolve({ call }),

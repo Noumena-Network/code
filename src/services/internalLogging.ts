@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import { readFile } from 'fs/promises'
 import memoize from 'lodash-es/memoize.js'
 import type { ToolPermissionContext } from '../Tool.js'
@@ -15,7 +16,7 @@ import {
  * ...
  */
 const getKubernetesNamespace = memoize(async (): Promise<string | null> => {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return null
   }
   const namespacePath =
@@ -33,7 +34,7 @@ const getKubernetesNamespace = memoize(async (): Promise<string | null> => {
  * Get the OCI container ID from within a running container
  */
 export const getContainerId = memoize(async (): Promise<string | null> => {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return null
   }
   const containerIdPath = '/proc/self/mountinfo'
@@ -72,7 +73,7 @@ export async function logPermissionContextForAnts(
   toolPermissionContext: ToolPermissionContext | null,
   moment: 'summary' | 'initialization',
 ): Promise<void> {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return
   }
 

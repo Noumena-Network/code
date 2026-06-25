@@ -224,7 +224,7 @@ function shouldLogDebugMessage(message: string): boolean {
 
   // Non-ants only write debug logs when debug mode is active (via --debug at
   // startup or /debug mid-session). Ants always log for /share, bug reports.
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant') && !isDebugMode()) {
+  if (!isInternalBuild() && !isDebugMode()) {
     return false
   }
 
@@ -428,7 +428,7 @@ const updateLatestDebugLogSymlink = memoize(async (): Promise<void> => {
  * Logs errors for Ants only, always visible in production.
  */
 export function logAntError(context: string, error: unknown): void {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return
   }
 

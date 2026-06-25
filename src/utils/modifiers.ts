@@ -1,6 +1,32 @@
+import { createRequire } from 'node:module'
+import { logForDebugging } from './debug.js'
+
 export type ModifierKey = 'shift' | 'command' | 'control' | 'option'
 
+const requireFn = createRequire(import.meta.url)
+
+type ModifiersBinding = {
+  prewarm?: () => void
+  isModifierPressed?: (m: string) => boolean
+}
+
+let cachedBinding: ModifiersBinding | null | undefined
 let prewarmed = false
+
+function loadBinding(): ModifiersBinding | null {
+  if (cachedBinding !== undefined) {
+    return cachedBinding
+  }
+  try {
+    cachedBinding = requireFn('modifiers-napi') as ModifiersBinding
+  } catch (error) {
+    logForDebugging(
+      `[modifiers] modifiers-napi unavailable (platform=${process.platform}): ${error instanceof Error ? error.message : String(error)}`,
+    )
+    cachedBinding = null
+  }
+  return cachedBinding
+}
 
 /**
  * Pre-warm the native module by loading it in advance.
@@ -11,14 +37,8 @@ export function prewarmModifiers(): void {
     return
   }
   prewarmed = true
-  // Load module in background
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { prewarm } = require('modifiers-napi') as { prewarm: () => void }
-    prewarm()
-  } catch {
-    // Ignore errors during prewarm
-  }
+  const binding = loadBinding()
+  binding?.prewarm?.()
 }
 
 /**
@@ -28,9 +48,6 @@ export function isModifierPressed(modifier: ModifierKey): boolean {
   if (process.platform !== 'darwin') {
     return false
   }
-  // Dynamic import to avoid loading native module at top level
-  const { isModifierPressed: nativeIsModifierPressed } =
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require('modifiers-napi') as { isModifierPressed: (m: string) => boolean }
-  return nativeIsModifierPressed(modifier)
+  const binding = loadBinding()
+  return binding?.isModifierPressed?.(modifier) ?? false
 }

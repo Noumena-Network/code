@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import { feature } from 'bun:bundle'
 import z from 'zod/v4'
 import { PAUSE_ICON } from '../../constants/figures.js'
@@ -98,7 +99,7 @@ export function isExternalPermissionMode(
   mode: PermissionMode,
 ): mode is ExternalPermissionMode {
   // External users can't have auto, so always true for them
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return true
   }
   return mode !== 'auto' && mode !== 'bubble'

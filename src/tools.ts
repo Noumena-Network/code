@@ -172,6 +172,23 @@ const getPowerShellTool = () => {
 }
 /* eslint-enable @typescript-eslint/no-require-imports */
 
+// Register the allBaseToolsCache invalidator with the plugin loader so
+// clearPluginCache() transitively busts this cache when plugins change.
+// Uses lazy require to avoid a circular dependency: tools.ts imports from
+// utils/plugins/pluginLoader.js indirectly via toolPolicy etc., and
+// pluginLoader.ts must not import tools.ts. Defensive: if the require
+// resolves to a different module shape (e.g. ESM/CJS interop under bun test),
+// skip registration rather than crashing.
+/* eslint-disable @typescript-eslint/no-require-imports */
+try {
+  const _pluginLoader = require('./utils/plugins/pluginLoader.js') as typeof import('./utils/plugins/pluginLoader.js') | { registerDownstreamCacheInvalidator?: typeof import('./utils/plugins/pluginLoader.js').registerDownstreamCacheInvalidator }
+  _pluginLoader.registerDownstreamCacheInvalidator?.(clearAllBaseToolsCache)
+} catch {
+  // Plugin loader unavailable in this environment (e.g. test mode); cache
+  // stays valid until process exit, which is fine for tests.
+}
+/* eslint-enable @typescript-eslint/no-require-imports */
+
 /**
  * Predefined tool presets that can be used with --tools flag
  */
@@ -200,6 +217,20 @@ export function getToolsForDefaultPreset(): string[] {
 }
 
 let allBaseToolsCache: Tools | undefined
+
+/**
+ * Invalidate the {@link getAllBaseTools} cache.
+ *
+ * The cache is stable in practice (tools are gated by build-time `feature()`
+ * flags and `process.env` constants read once at module eval), but plugin
+ * reloads and `NCODE_USER_MODE` runtime switches can change which tools are
+ * visible. Callers that mutate those states (e.g. clearPluginCache) should
+ * call this so the next getAllBaseTools() re-evaluates rather than returning
+ * a stale set.
+ */
+export function clearAllBaseToolsCache(): void {
+  allBaseToolsCache = undefined
+}
 
 /**
  * Get the complete exhaustive list of all tools that could be available

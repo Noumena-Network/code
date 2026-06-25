@@ -70,7 +70,7 @@ const ANTHROPIC_PERMISSIONS_TEMPLATE: string =
 /* eslint-enable custom-rules/no-process-env-top-level, @typescript-eslint/no-require-imports */
 
 function isUsingExternalPermissions(): boolean {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) return true
+  if (!isInternalBuild()) return true
   const config = getFeatureValue_CACHED_MAY_BE_STALE(
     'ncode_auto_mode_config',
     {} as AutoModeConfig,
@@ -157,7 +157,7 @@ async function maybeDumpAutoMode(
   timestamp: number,
   suffix?: string,
 ): Promise<void> {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) return
+  if (!isInternalBuild()) return
   if (!isEnvTruthy(process.env.CLAUDE_CODE_DUMP_AUTO_MODE)) return
   const base = suffix ? `${timestamp}.${suffix}` : `${timestamp}`
   try {

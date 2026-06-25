@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import React, { useCallback, useEffect, useMemo } from 'react'
 import { Box, Text } from '../ink.js'
 import { getGlobalConfig, saveGlobalConfig } from '../utils/config.js'
@@ -112,7 +113,7 @@ export function AntModelSwitchCallout({
 }
 
 export function shouldShowModelSwitchCallout(): boolean {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return false
   }
 

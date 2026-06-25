@@ -2,6 +2,7 @@ import { existsSync } from 'fs'
 import { mkdir, readdir, readFile, unlink, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { z } from 'zod/v4'
+import { logForDebugging } from '../../utils/debug.js'
 import { getCwd } from '../../utils/cwd.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { lazySchema } from '../../utils/lazySchema.js'
@@ -62,7 +63,10 @@ async function readJsonFile<T>(
     const content = await readFile(path, { encoding: 'utf-8' })
     const result = schema.safeParse(jsonParse(content))
     return result.success ? result.data : null
-  } catch {
+  } catch (error) {
+    logForDebugging(
+      `[agent-memory] Failed to read/parse ${path}: ${error instanceof Error ? error.message : String(error)}`,
+    )
     return null
   }
 }
@@ -132,7 +136,7 @@ export async function checkAgentMemorySnapshot(
     const dirents = await readdir(localMemDir, { withFileTypes: true })
     hasLocalMemory = dirents.some(d => d.isFile() && d.name.endsWith('.md'))
   } catch {
-    // Directory doesn't exist
+    // Directory doesn't exist — expected for agents without local memory.
   }
 
   if (!hasLocalMemory) {

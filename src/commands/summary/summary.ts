@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import { manuallyExtractSessionMemory } from '../../services/SessionMemory/sessionMemory.js'
 import {
   getSessionMemoryContent,
@@ -19,7 +20,7 @@ function usage(): string {
 }
 
 export const call: LocalCommandCall = async (args, context) => {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return text('`/summary` is only available in ANT builds.')
   }
 

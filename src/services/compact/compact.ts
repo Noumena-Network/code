@@ -83,6 +83,7 @@ import {
 } from '../../utils/sessionStorage.js'
 import { sleep } from '../../utils/sleep.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
+import { isMemoryFilePath } from '../../utils/claudemd.js'
 /* eslint-enable @typescript-eslint/no-require-imports */
 import { asSystemPrompt } from '../../utils/systemPromptType.js'
 import { getTaskOutputPath } from '../../utils/task/diskOutput.js'
@@ -1761,11 +1762,16 @@ function shouldExcludeFromPostCompactRestore(
     // If we can't get plan file path, continue with other checks
   }
 
-  // Exclude all types of claude.md files
-  // TODO: Refactor to use isMemoryFilePath() from claudemd.ts for consistency
-  // and to also match child directory memory files (.ncode/rules/*.md, legacy
-  // .claude/rules/*.md, etc.)
+  // Exclude all types of claude.md / NCODE.md memory files.
+  // isMemoryFilePath() checks by basename + path pattern (covers child
+  // directory memory files like .ncode/rules/*.md, .claude/rules/*.md, etc.).
+  // The explicit MEMORY_TYPE_VALUES check below covers canonical paths that
+  // isMemoryFilePath might miss (e.g. managed settings paths that don't
+  // follow the basename convention). Both checks are kept for completeness.
   try {
+    if (isMemoryFilePath(normalizedFilename)) {
+      return true
+    }
     const normalizedMemoryPaths = new Set(
       MEMORY_TYPE_VALUES.map(type => expandPath(getMemoryPath(type))),
     )

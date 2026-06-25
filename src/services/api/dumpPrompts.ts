@@ -48,7 +48,7 @@ export function clearAllDumpState(): void {
 }
 
 export function addApiRequestToCache(requestData: unknown): void {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) return
+  if (!isInternalBuild()) return
   cachedApiRequests.push({
     timestamp: new Date().toISOString(),
     request: requestData,
@@ -101,7 +101,7 @@ function dumpRequest(
     const req = jsonParse(body) as Record<string, unknown>
     addApiRequestToCache(req)
 
-    if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) return
+    if (!isInternalBuild()) return
     const entries: string[] = []
     const messages = (req.messages ?? []) as Array<{ role?: string }>
 

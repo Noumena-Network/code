@@ -277,7 +277,7 @@ function createSpeculationFeedbackMessage(
   timeSavedMs: number,
   sessionTotalMs: number,
 ): Message | null {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) return null
+  if (!isInternalBuild()) return null
 
   if (messages.length === 0 || timeSavedMs === 0) return null
 

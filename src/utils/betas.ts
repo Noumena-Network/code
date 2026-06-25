@@ -1,5 +1,6 @@
 import { feature } from 'bun:bundle'
 import memoize from 'lodash-es/memoize.js'
+import { cliPrintWarn } from './cliOutput.js'
 import {
   checkStatsigFeatureGate_CACHED_MAY_BE_STALE,
   getFeatureValue_CACHED_MAY_BE_STALE,
@@ -74,8 +75,7 @@ export function filterAllowedSdkBetas(
   }
 
   if (hasManagedPrincipalSession()) {
-    // biome-ignore lint/suspicious/noConsole: intentional warning
-    console.warn(
+    cliPrintWarn(
       'Warning: Custom betas are only available for API key users. Ignoring provided betas.',
     )
     return undefined
@@ -83,8 +83,7 @@ export function filterAllowedSdkBetas(
 
   const { allowed, disallowed } = partitionBetasByAllowlist(sdkBetas)
   for (const beta of disallowed) {
-    // biome-ignore lint/suspicious/noConsole: intentional warning
-    console.warn(
+    cliPrintWarn(
       `Warning: Beta header '${beta}' is not allowed. Only the following betas are supported: ${ALLOWED_SDK_BETAS.join(', ')}`,
     )
   }
@@ -168,7 +167,7 @@ export function modelSupportsAutoMode(model: string): boolean {
     // External: firstParty-only at launch (PI probes not wired for
     // Bedrock/Vertex/Foundry yet). Checked before allowModels so the GB
     // override can't enable auto mode on unsupported providers.
-    if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant') && getAPIProvider() !== 'firstParty') {
+    if (!isInternalBuild() && getAPIProvider() !== 'firstParty') {
       return false
     }
     // GrowthBook override: ncode_auto_mode_config.allowModels force-enables

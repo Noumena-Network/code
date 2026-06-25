@@ -30,6 +30,7 @@ import { buildTool, type ToolDef } from '../../Tool.js'
 import { getCwd } from '../../utils/cwd.js'
 import { getClaudeConfigHomeDir, isEnvTruthy } from '../../utils/envUtils.js'
 import { getErrnoCode, isENOENT } from '../../utils/errors.js'
+import { swallow } from '../../utils/swallow.js'
 import {
   addLineNumbers,
   FILE_NOT_FOUND_CWD_NOTE,
@@ -587,7 +588,7 @@ export const FileReadTool = buildTool({
           context.dynamicSkillDirTriggers?.add(dir)
         }
         // Don't await - let skill loading happen in the background
-        addSkillDirectories(newSkillDirs).catch(() => {})
+        swallow(addSkillDirectories(newSkillDirs), 'addSkillDirectories (FileReadTool)')
       }
 
       // Activate conditional skills whose path patterns match this file

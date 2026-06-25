@@ -38,6 +38,7 @@ import reconciler, { dispatcher, getLastCommitMs, getLastYogaMs, isDebugRepaints
 import renderNodeToOutput, { consumeFollowScroll, getLayoutDamageRows } from './render-node-to-output.js';
 import { applyPositionedHighlight, type MatchPosition, scanPositions } from './render-to-screen.js';
 import createRenderer, { type Renderer } from './renderer.js';
+import { asCreateContainer10, asSyncReconciler } from './reconcilerShims.js';
 import { CellWidth, CharPool, cellAt, createScreen, HyperlinkPool, isEmptyCellAt, migrateScreenPools, StylePool } from './screen.js';
 import { applySearchHighlight } from './searchHighlight.js';
 import { applySelectionOverlay, captureScrolledRows, clearSelection, createSelectionState, extendSelection, type FocusMove, findPlainTextUrlAt, getSelectedText, hasSelection, moveFocus, type SelectionState, selectLineAt, selectWordAt, shiftAnchor, shiftSelection, shiftSelectionForFollow, startSelection, updateSelection } from './selection.js';
@@ -291,15 +292,17 @@ export default class Ink {
       }
     };
 
-    // @ts-expect-error @types/react-reconciler@0.32.3 declares 11 args with transitionCallbacks,
-    // but react-reconciler 0.33.0 source only accepts 10 args (no transitionCallbacks)
-    this.container = reconciler.createContainer(this.rootNode, ConcurrentRoot, null, false, null, 'id', noop,
-    // onUncaughtError
-    noop,
-    // onCaughtError
-    noop,
-    // onRecoverableError
-    noop // onDefaultTransitionIndicator
+    this.container = asCreateContainer10(reconciler).createContainer(
+      this.rootNode,
+      ConcurrentRoot,
+      null,
+      false,
+      null,
+      'id',
+      noop,
+      noop,
+      noop,
+      noop,
     );
     if (process.env.NODE_ENV === 'development') {
       reconciler.injectIntoDevTools({
@@ -906,8 +909,7 @@ export default class Ink {
   }
   pause(): void {
     // Flush pending React updates and render before pausing.
-    // @ts-expect-error flushSyncFromReconciler exists in react-reconciler 0.31 but not in @types/react-reconciler
-    reconciler.flushSyncFromReconciler();
+    asSyncReconciler(reconciler).flushSyncFromReconciler();
     this.onRender();
     this.isPaused = true;
   }
@@ -1596,10 +1598,9 @@ export default class Ink {
         </TerminalWriteProvider>
       </App>;
 
-    // @ts-expect-error updateContainerSync exists in react-reconciler but not in @types/react-reconciler
-    reconciler.updateContainerSync(tree, this.container, null, noop);
-    // @ts-expect-error flushSyncWork exists in react-reconciler but not in @types/react-reconciler
-    reconciler.flushSyncWork();
+    const syncReconciler = asSyncReconciler(reconciler)
+    syncReconciler.updateContainerSync(tree, this.container, null, noop);
+    syncReconciler.flushSyncWork();
   }
   unmount(error?: Error | number | null): void {
     if (this.isUnmounted) {
@@ -1667,10 +1668,9 @@ export default class Ink {
       this.drainTimer = null;
     }
 
-    // @ts-expect-error updateContainerSync exists in react-reconciler but not in @types/react-reconciler
-    reconciler.updateContainerSync(null, this.container, null, noop);
-    // @ts-expect-error flushSyncWork exists in react-reconciler but not in @types/react-reconciler
-    reconciler.flushSyncWork();
+    const syncReconciler = asSyncReconciler(reconciler)
+    syncReconciler.updateContainerSync(null, this.container, null, noop);
+    syncReconciler.flushSyncWork();
     instances.delete(this.options.stdout);
 
     // Free the root yoga node, then clear its reference. Children are already

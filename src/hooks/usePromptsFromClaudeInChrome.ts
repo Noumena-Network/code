@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages.mjs'
 import { useEffect, useRef } from 'react'
 import { z } from 'zod/v4'
@@ -50,7 +51,7 @@ export function usePromptsFromClaudeInChrome(
   const mcpClientRef = useRef<ConnectedMCPServer | undefined>(undefined)
 
   useEffect(() => {
-    if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+    if (!isInternalBuild()) {
       return
     }
 

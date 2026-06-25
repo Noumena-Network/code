@@ -136,7 +136,7 @@ function getSystemRemindersSection(): string {
 }
 
 function getAntModelOverrideSection(): string | null {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) return null
+  if (!isInternalBuild()) return null
   if (isUndercover()) return null
   return getAntModelOverrideConfig()?.defaultSystemPromptSuffix || null
 }

@@ -1,3 +1,4 @@
+import { isInternalBuild } from '../../capabilities/static.js'
 import { isEnvTruthy } from '../../utils/envUtils.js'
 
 const onboarding = {
@@ -7,7 +8,7 @@ const onboarding = {
   isHidden: true,
   immediate: true,
   isEnabled: () =>
-    (process.env.NCODE_BUILD_MODE === 'noumena' || process.env.USER_TYPE === 'ant') && !isEnvTruthy(process.env.IS_DEMO),
+    isInternalBuild() && !isEnvTruthy(process.env.IS_DEMO),
   load: () => import('./onboarding.js'),
 }
 

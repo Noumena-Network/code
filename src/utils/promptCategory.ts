@@ -18,7 +18,12 @@ export function getQuerySourceForAgent(
   isBuiltInAgent: boolean,
 ): QuerySource {
   if (isBuiltInAgent) {
-    // TODO: avoid this cast
+    // Cast: QuerySource is a closed string union, but built-in agent types
+    // are dynamic (e.g. 'agent:builtin:code-reviewer'). TS can't prove the
+    // template literal is a member of the union. The runtime values are
+    // valid — the union just doesn't express the `agent:builtin:*` prefix
+    // pattern. To fix without a cast, widen QuerySource to a template
+    // literal type or add `agent:builtin:${string}` as a member.
     return agentType
       ? (`agent:builtin:${agentType}` as QuerySource)
       : 'agent:default'

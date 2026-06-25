@@ -1,6 +1,7 @@
 import { updateSessionBridgeId } from '../utils/concurrentSessions.js'
 import type { ReplBridgeHandle } from './replBridge.js'
 import { toCompatSessionId } from './sessionIdCompat.js'
+import { swallow } from '../utils/swallow.js'
 
 /**
  * Global pointer to the active REPL bridge handle, so callers outside
@@ -19,7 +20,7 @@ export function setReplBridgeHandle(h: ReplBridgeHandle | null): void {
   handle = h
   // Publish (or clear) our bridge session ID in the session record so other
   // local peers can dedup us out of their bridge list — local is preferred.
-  void updateSessionBridgeId(getSelfBridgeCompatId() ?? null).catch(() => {})
+  swallow(updateSessionBridgeId(getSelfBridgeCompatId() ?? null), 'set repl bridge handle session id')
 }
 
 export function getReplBridgeHandle(): ReplBridgeHandle | null {

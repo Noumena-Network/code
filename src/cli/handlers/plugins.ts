@@ -57,6 +57,7 @@ import {
 } from '../../utils/plugins/validatePlugin.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import { plural } from '../../utils/stringUtils.js'
+import { cliPrint } from '../../utils/cliOutput.js'
 import { cliError, cliOk } from '../exit.js'
 
 // Re-export for main.tsx to reference in option definitions
@@ -72,28 +73,22 @@ export function handleMarketplaceError(error: unknown, action: string): never {
 
 function printValidationResult(result: ValidationResult): void {
   if (result.errors.length > 0) {
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(
+    cliPrint(
       `${figures.cross} Found ${result.errors.length} ${plural(result.errors.length, 'error')}:\n`,
     )
     result.errors.forEach(error => {
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(`  ${figures.pointer} ${error.path}: ${error.message}`)
+      cliPrint(`  ${figures.pointer} ${error.path}: ${error.message}`)
     })
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log('')
+    cliPrint('')
   }
   if (result.warnings.length > 0) {
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(
+    cliPrint(
       `${figures.warning} Found ${result.warnings.length} ${plural(result.warnings.length, 'warning')}:\n`,
     )
     result.warnings.forEach(warning => {
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(`  ${figures.pointer} ${warning.path}: ${warning.message}`)
+      cliPrint(`  ${figures.pointer} ${warning.path}: ${warning.message}`)
     })
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log('')
+    cliPrint('')
   }
 }
 
@@ -105,9 +100,7 @@ export async function pluginValidateHandler(
   if (options.cowork) setUseCoworkPlugins(true)
   try {
     const result = await validateManifest(manifestPath)
-
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(`Validating ${result.fileType} manifest: ${result.filePath}\n`)
+    cliPrint(`Validating ${result.fileType} manifest: ${result.filePath}\n`)
     printValidationResult(result)
 
     // If this is a plugin manifest located inside a .claude-plugin directory,
@@ -120,8 +113,7 @@ export async function pluginValidateHandler(
       if (basename(manifestDir) === '.claude-plugin') {
         contentResults = await validatePluginContents(dirname(manifestDir))
         for (const r of contentResults) {
-          // biome-ignore lint/suspicious/noConsole:: intentional console output
-          console.log(`Validating ${r.fileType}: ${r.filePath}\n`)
+          cliPrint(`Validating ${r.fileType}: ${r.filePath}\n`)
           printValidationResult(r)
         }
       }
@@ -354,8 +346,7 @@ export async function pluginListHandler(options: {
   }
 
   if (pluginIds.length > 0) {
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log('Installed plugins:\n')
+    cliPrint('Installed plugins:\n')
   }
 
   for (const pluginId of pluginIds.sort()) {
@@ -378,27 +369,19 @@ export async function pluginListHandler(options: {
             : `${figures.cross} disabled`
       const version = installation.version || 'unknown'
       const scope = installation.scope
-
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(`  ${figures.pointer} ${pluginId}`)
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(`    Version: ${version}`)
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(`    Scope: ${scope}`)
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(`    Status: ${status}`)
+      cliPrint(`  ${figures.pointer} ${pluginId}`)
+      cliPrint(`    Version: ${version}`)
+      cliPrint(`    Scope: ${scope}`)
+      cliPrint(`    Status: ${status}`)
       for (const error of pluginErrors) {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.log(`    Error: ${getPluginErrorMessage(error)}`)
+        cliPrint(`    Error: ${getPluginErrorMessage(error)}`)
       }
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log('')
+      cliPrint('')
     }
   }
 
   if (inlinePlugins.length > 0 || inlineLoadErrors.length > 0) {
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log('Session-only plugins (--plugin-dir):\n')
+    cliPrint('Session-only plugins (--plugin-dir):\n')
     for (const p of inlinePlugins) {
       // Same dirName≠manifestName fallback as the JSON path above — error
       // sources use the dir basename but p.source uses the manifest name.
@@ -409,28 +392,21 @@ export async function pluginListHandler(options: {
         pErrors.length > 0
           ? `${figures.cross} loaded with errors`
           : `${figures.tick} loaded`
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(`  ${figures.pointer} ${p.source}`)
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(`    Version: ${p.manifest.version ?? 'unknown'}`)
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(`    Path: ${p.path}`)
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(`    Status: ${status}`)
+      cliPrint(`  ${figures.pointer} ${p.source}`)
+      cliPrint(`    Version: ${p.manifest.version ?? 'unknown'}`)
+      cliPrint(`    Path: ${p.path}`)
+      cliPrint(`    Status: ${status}`)
       for (const e of pErrors) {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.log(`    Error: ${getPluginErrorMessage(e)}`)
+        cliPrint(`    Error: ${getPluginErrorMessage(e)}`)
       }
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log('')
+      cliPrint('')
     }
     // Path-level failures: no LoadedPlugin object exists. Show them so
     // `--plugin-dir /typo` doesn't just silently produce nothing.
     for (const e of inlineLoadErrors.filter(e =>
       e.source.startsWith('inline['),
     )) {
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(
+      cliPrint(
         `  ${figures.pointer} ${e.source}: ${figures.cross} ${getPluginErrorMessage(e)}\n`,
       )
     }
@@ -484,14 +460,11 @@ export async function marketplaceAddHandler(
         )
       }
     }
-
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log('Adding marketplace...')
+    cliPrint('Adding marketplace...')
 
     const { name, alreadyMaterialized, resolvedSource } =
       await addMarketplaceSource(marketplaceSource, message => {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.log(message)
+        cliPrint(message)
       })
 
     // Write intent to settings at the requested scope
@@ -550,35 +523,26 @@ export async function marketplaceListHandler(options: {
     if (names.length === 0) {
       cliOk('No marketplaces configured')
     }
-
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log('Configured marketplaces:\n')
+    cliPrint('Configured marketplaces:\n')
     names.forEach(name => {
       const marketplace = config[name]
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(`  ${figures.pointer} ${name}`)
+      cliPrint(`  ${figures.pointer} ${name}`)
 
       if (marketplace?.source) {
         const src = marketplace.source
         if (src.source === 'github') {
-          // biome-ignore lint/suspicious/noConsole:: intentional console output
-          console.log(`    Source: GitHub (${src.repo})`)
+          cliPrint(`    Source: GitHub (${src.repo})`)
         } else if (src.source === 'git') {
-          // biome-ignore lint/suspicious/noConsole:: intentional console output
-          console.log(`    Source: Git (${src.url})`)
+          cliPrint(`    Source: Git (${src.url})`)
         } else if (src.source === 'url') {
-          // biome-ignore lint/suspicious/noConsole:: intentional console output
-          console.log(`    Source: URL (${src.url})`)
+          cliPrint(`    Source: URL (${src.url})`)
         } else if (src.source === 'directory') {
-          // biome-ignore lint/suspicious/noConsole:: intentional console output
-          console.log(`    Source: Directory (${src.path})`)
+          cliPrint(`    Source: Directory (${src.path})`)
         } else if (src.source === 'file') {
-          // biome-ignore lint/suspicious/noConsole:: intentional console output
-          console.log(`    Source: File (${src.path})`)
+          cliPrint(`    Source: File (${src.path})`)
         }
       }
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log('')
+      cliPrint('')
     })
 
     cliOk()
@@ -616,12 +580,10 @@ export async function marketplaceUpdateHandler(
   if (options.cowork) setUseCoworkPlugins(true)
   try {
     if (name) {
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(`Updating marketplace: ${name}...`)
+      cliPrint(`Updating marketplace: ${name}...`)
 
       await refreshMarketplace(name, message => {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.log(message)
+        cliPrint(message)
       })
 
       clearAllCaches()
@@ -639,9 +601,7 @@ export async function marketplaceUpdateHandler(
       if (marketplaceNames.length === 0) {
         cliOk('No marketplaces configured')
       }
-
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.log(`Updating ${marketplaceNames.length} marketplace(s)...`)
+      cliPrint(`Updating ${marketplaceNames.length} marketplace(s)...`)
 
       await refreshAllMarketplaces()
       clearAllCaches()

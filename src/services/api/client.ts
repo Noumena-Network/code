@@ -20,6 +20,7 @@ import {
 } from '../../bootstrap/state.js'
 import { getLegacyAnthropicSdkBaseUrl } from '../../constants/oauth.js'
 import { isDebugToStdErr, logForDebugging } from '../../utils/debug.js'
+import { cliPrintError } from '../../utils/cliOutput.js'
 import {
   getAWSRegion,
   getVertexRegionForModel,
@@ -72,16 +73,10 @@ import { getAuthRuntime } from '../../auth/runtime/AuthRuntime.js'
 
 function createStderrLogger(): ClientOptions['logger'] {
   return {
-    error: (msg, ...args) =>
-      // biome-ignore lint/suspicious/noConsole:: intentional console output -- SDK logger must use console
-      console.error('[Anthropic SDK ERROR]', msg, ...args),
-    // biome-ignore lint/suspicious/noConsole:: intentional console output -- SDK logger must use console
-    warn: (msg, ...args) => console.error('[Anthropic SDK WARN]', msg, ...args),
-    // biome-ignore lint/suspicious/noConsole:: intentional console output -- SDK logger must use console
-    info: (msg, ...args) => console.error('[Anthropic SDK INFO]', msg, ...args),
-    debug: (msg, ...args) =>
-      // biome-ignore lint/suspicious/noConsole:: intentional console output -- SDK logger must use console
-      console.error('[Anthropic SDK DEBUG]', msg, ...args),
+    error: (msg, ...args) => cliPrintError('[Anthropic SDK ERROR]', msg, ...args),
+    warn: (msg, ...args) => cliPrintError('[Anthropic SDK WARN]', msg, ...args),
+    info: (msg, ...args) => cliPrintError('[Anthropic SDK INFO]', msg, ...args),
+    debug: (msg, ...args) => cliPrintError('[Anthropic SDK DEBUG]', msg, ...args),
   }
 }
 

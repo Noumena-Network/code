@@ -4,6 +4,7 @@
  * Cmdlets are case-insensitive; all matching is done in lowercase.
  */
 
+import { isInternalBuild } from 'src/capabilities/static.js'
 import type {
   ParsedCommandElement,
   ParsedPowerShellCommand,
@@ -1702,7 +1703,7 @@ function isGitSafe(args: string[]): boolean {
 
 function isGhSafe(args: string[]): boolean {
   // gh commands are network-dependent; only allow for ant users
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return false
   }
 

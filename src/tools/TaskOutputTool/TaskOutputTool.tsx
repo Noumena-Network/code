@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import { c as _c } from "react/compiler-runtime";
 import React from 'react';
 import { z } from 'zod/v4';
@@ -182,7 +183,7 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
     return this.isReadOnly?.(_input) ?? false;
   },
   isEnabled() {
-    return (process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant');
+    return !isInternalBuild();
   },
   isReadOnly(_input) {
     return true;

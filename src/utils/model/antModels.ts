@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from 'src/services/analytics/growthbook.js'
 import type { EffortLevel } from '../effort.js'
 
@@ -32,7 +33,7 @@ export type AntModelOverrideConfig = {
 // @[MODEL LAUNCH]: Update ncode_internal_model_override with new ant-only models
 // @[MODEL LAUNCH]: Add the codename to scripts/excluded-strings.txt to prevent it from leaking to external builds.
 export function getAntModelOverrideConfig(): AntModelOverrideConfig | null {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return null
   }
   return getFeatureValue_CACHED_MAY_BE_STALE<AntModelOverrideConfig | null>(
@@ -42,7 +43,7 @@ export function getAntModelOverrideConfig(): AntModelOverrideConfig | null {
 }
 
 export function getAntModels(): AntModel[] {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return []
   }
   return getAntModelOverrideConfig()?.antModels ?? []
@@ -51,7 +52,7 @@ export function getAntModels(): AntModel[] {
 export function resolveAntModel(
   model: string | undefined,
 ): AntModel | undefined {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return undefined
   }
   if (model === undefined) {

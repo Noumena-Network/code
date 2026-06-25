@@ -907,6 +907,121 @@ describe('mapOpenAIChatCompletionToAnthropicMessage', () => {
 
     expect(message.content).toEqual([{ type: 'text', text: 'final answer' }])
   })
+
+  it('strips empty-name tool_use blocks and their tool_results to prevent 400 loops (GLM-5.2)', () => {
+    const request = buildOpenAICompatChatRequest({
+      model: GLM_5_2_MODEL,
+      max_tokens: 64,
+      messages: [
+        { role: 'user', content: 'do something' },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'call_bad',
+              name: '',
+              input: {},
+            },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'call_bad',
+              content: 'Tool  not found',
+            },
+            { type: 'text', text: '继续' },
+          ],
+        },
+        { role: 'user', content: 'next question' },
+      ],
+    } as never)
+
+    expect(request.messages).toEqual([
+      { role: 'user', content: 'do something' },
+      { role: 'user', content: '继续' },
+      { role: 'user', content: 'next question' },
+    ])
+  })
+
+  it('drops the entire assistant message when all tool_use blocks have empty names', () => {
+    const request = buildOpenAICompatChatRequest({
+      model: GLM_5_2_MODEL,
+      max_tokens: 64,
+      messages: [
+        { role: 'user', content: 'hello' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'call_a', name: '', input: {} },
+            { type: 'tool_use', id: 'call_b', name: '   ', input: {} },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'tool_result', tool_use_id: 'call_a', content: 'Tool  not found' },
+            { type: 'tool_result', tool_use_id: 'call_b', content: 'Tool  not found' },
+          ],
+        },
+        { role: 'user', content: 'reply' },
+      ],
+    } as never)
+
+    expect(request.messages).toEqual([
+      { role: 'user', content: 'hello' },
+      { role: 'user', content: 'reply' },
+    ])
+  })
+
+  it('preserves valid tool_use blocks alongside an empty-name block', () => {
+    const request = buildOpenAICompatChatRequest({
+      model: GLM_5_2_MODEL,
+      max_tokens: 64,
+      messages: [
+        { role: 'user', content: 'hello' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'call_bad', name: '', input: {} },
+            { type: 'tool_use', id: 'call_good', name: 'Bash', input: { cmd: 'ls' } },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'tool_result', tool_use_id: 'call_bad', content: 'Tool  not found' },
+            { type: 'tool_result', tool_use_id: 'call_good', content: 'file.ts' },
+          ],
+        },
+      ],
+      tools: [
+        {
+          name: 'Bash',
+          description: 'Run shell commands',
+          input_schema: { type: 'object', properties: { cmd: { type: 'string' } } },
+        },
+      ],
+    } as never)
+
+    const assistantMsg = request.messages.find(m => m.role === 'assistant')
+    expect(assistantMsg).toBeDefined()
+    expect(assistantMsg?.tool_calls).toEqual([
+      {
+        id: 'call_good',
+        type: 'function',
+        function: { name: 'Bash', arguments: '{"cmd":"ls"}' },
+      },
+    ])
+
+    const toolMsg = request.messages.find(m => m.role === 'tool')
+    expect(toolMsg).toBeDefined()
+    expect(toolMsg?.tool_call_id).toBe('call_good')
+    expect(toolMsg?.content).toBe('file.ts')
+  })
 })
 
 describe('OpenAICompatInferenceClient', () => {

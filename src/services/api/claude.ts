@@ -211,6 +211,7 @@ import {
   stopSessionActivity,
 } from '../../utils/sessionActivity.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
+import { swallow } from '../../utils/swallow.js'
 import {
   isBetaTracingEnabled,
   type LLMRequestNewContext,
@@ -1547,7 +1548,7 @@ async function* queryModel(
     cleanupStream(stream)
     stream = undefined
     if (streamResponse) {
-      streamResponse.body?.cancel().catch(() => {})
+      swallow(streamResponse.body?.cancel() ?? Promise.resolve(), 'cancel stream response body')
       streamResponse = undefined
     }
   }

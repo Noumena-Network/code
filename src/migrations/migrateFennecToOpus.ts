@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import {
   getSettingsForSource,
   updateSettingsForSource,
@@ -16,7 +17,7 @@ import {
  * settings here would cause infinite re-runs + silent global promotion.
  */
 export function migrateFennecToOpus(): void {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return
   }
 

@@ -794,7 +794,7 @@ export function REPL({
   // eslint-disable-next-line prefer-const
   let trySuggestBgPRIntercept = SUGGEST_BG_PR_NOOP;
   trySuggestBgPRIntercept = (prevInput, nextInput) => {
-    if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+    if (!isInternalBuild()) {
       return false;
     }
     const wasPrefixed = parseBackgroundPRShortcutInput(prevInput) !== null;
@@ -3551,7 +3551,9 @@ export function REPL({
     return () => {
       void diagnosticTracker.shutdown();
     };
-    // TODO: fix this
+    // Mount-once effect: onInit and diagnosticTracker are stable refs
+    // (useRef-backed), so [] deps is intentional — we don't want to re-init
+    // when the callbacks' identities change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

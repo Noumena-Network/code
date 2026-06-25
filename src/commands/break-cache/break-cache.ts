@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import { feature } from 'bun:bundle'
 import { randomUUID } from 'crypto'
 import {
@@ -76,7 +77,7 @@ function setInjectionAndDescribe(
 }
 
 export const call: LocalCommandCall = async args => {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return text('`/break-cache` is only available in ANT builds.')
   }
 

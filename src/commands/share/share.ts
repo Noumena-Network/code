@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import { randomUUID } from 'crypto'
 import { submitTranscriptShare } from '../../components/FeedbackSurvey/submitTranscriptShare.js'
 import { isPolicyAllowed } from '../../services/policyLimits/index.js'
@@ -23,7 +24,7 @@ function toCcshareUrl(transcriptId: string): string {
 }
 
 export const call: LocalCommandCall = async (args, context) => {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return text('`/share` is only available in ANT builds.')
   }
   if (isEssentialTrafficOnly() || !isPolicyAllowed('allow_product_feedback')) {

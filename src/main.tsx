@@ -7,6 +7,8 @@
 //    sequentially via sync spawn inside applySafeConfigEnvironmentVariables()
 //    (~65ms on every macOS startup)
 import { profileCheckpoint, profileReport } from './utils/startupProfiler.js';
+import { cliPrintError, cliPrintWarn } from './utils/cliOutput.js';
+import { swallow } from './utils/swallow.js';
 
 // eslint-disable-next-line custom-rules/no-top-level-side-effects
 profileCheckpoint('main_tsx_entry');
@@ -317,7 +319,7 @@ function isBeingDebugged() {
 }
 
 // Exit if we detect node debugging or inspection
-if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant') && isBeingDebugged()) {
+if (!isInternalBuild() && isBeingDebugged()) {
   // Use process.exit directly here since we're in the top-level code before imports
   // and gracefulShutdown is not yet available
   // eslint-disable-next-line custom-rules/no-top-level-side-effects
@@ -1081,8 +1083,7 @@ async function run(): Promise<CommanderCommand> {
     // Ignore "code" as a prompt - treat it the same as no prompt
     if (prompt === 'code') {
       logEvent('ncode_code_prompt_ignored', {});
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.warn(chalk.yellow('Tip: You can launch Code with just `code`'));
+      cliPrintWarn(chalk.yellow('Tip: You can launch Code with just `code`'));
       prompt = undefined;
     }
 
@@ -1130,8 +1131,7 @@ async function run(): Promise<CommanderCommand> {
       agentId?: unknown;
     }).agentId && kairosGate) {
       if (!checkHasTrustDialogAccepted()) {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.warn(chalk.yellow('Assistant mode disabled: directory is not trusted. Accept the trust dialog and restart.'));
+        cliPrintWarn(chalk.yellow('Assistant mode disabled: directory is not trusted. Accept the trust dialog and restart.'));
       } else {
         // Blocking gate check — returns cached `true` instantly; if disk
         // cache is false/missing, lazily inits GrowthBook and fetches fresh
@@ -1640,8 +1640,7 @@ async function run(): Promise<CommanderCommand> {
         });
         logForDebugging(`[Code in Chrome] Error: ${error}`);
         logError(error);
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.error(`Error: Failed to run with Code in Chrome.`);
+        cliPrintError(`Error: Failed to run with Code in Chrome.`);
         process.exit(1);
       }
     } else if (autoEnableClaudeInChrome) {
@@ -1857,8 +1856,7 @@ async function run(): Promise<CommanderCommand> {
 
     // Print any warnings from initialization
     warnings.forEach(warning => {
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.error(warning);
+      cliPrintError(warning);
     });
     void assertMinVersion();
 
@@ -1909,21 +1907,18 @@ async function run(): Promise<CommanderCommand> {
     // NOTE: We do NOT call prefetchAllMcpResources here - that's deferred until after trust dialog
 
     if (inputFormat && inputFormat !== 'text' && inputFormat !== 'stream-json') {
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.error(`Error: Invalid input format "${inputFormat}".`);
+      cliPrintError(`Error: Invalid input format "${inputFormat}".`);
       process.exit(1);
     }
     if (inputFormat === 'stream-json' && outputFormat !== 'stream-json') {
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.error(`Error: --input-format=stream-json requires output-format=stream-json.`);
+      cliPrintError(`Error: --input-format=stream-json requires output-format=stream-json.`);
       process.exit(1);
     }
 
     // Validate sdkUrl is only used with appropriate formats (formats are auto-set above)
     if (sdkUrl) {
       if (inputFormat !== 'stream-json' || outputFormat !== 'stream-json') {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.error(`Error: --sdk-url requires both --input-format=stream-json and --output-format=stream-json.`);
+        cliPrintError(`Error: --sdk-url requires both --input-format=stream-json and --output-format=stream-json.`);
         process.exit(1);
       }
     }
@@ -1931,8 +1926,7 @@ async function run(): Promise<CommanderCommand> {
     // Validate replayUserMessages is only used with stream-json formats
     if (options.replayUserMessages) {
       if (inputFormat !== 'stream-json' || outputFormat !== 'stream-json') {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.error(`Error: --replay-user-messages requires both --input-format=stream-json and --output-format=stream-json.`);
+        cliPrintError(`Error: --replay-user-messages requires both --input-format=stream-json and --output-format=stream-json.`);
         process.exit(1);
       }
     }
@@ -2022,8 +2016,8 @@ async function run(): Promise<CommanderCommand> {
     const agentDefsPromise = worktreeEnabled || deferHeadlessCommandAndAgentLoad ? null : getAgentDefinitionsWithOverrides(preSetupCwd);
     // Suppress transient unhandledRejection if these reject during the
     // ~28ms setupPromise await before Promise.all joins them below.
-    commandsPromise?.catch(() => {});
-    agentDefsPromise?.catch(() => {});
+    swallow(commandsPromise ?? Promise.resolve(), 'pre-setup commands fetch');
+    swallow(agentDefsPromise ?? Promise.resolve(), 'pre-setup agent defs fetch');
     await setupPromise;
     logForDebugging(`[STARTUP] setup() completed in ${Date.now() - setupStart}ms`);
     profileCheckpoint('action_after_setup');
@@ -2122,8 +2116,8 @@ async function run(): Promise<CommanderCommand> {
     const agentDefsReadyPromise = deferHeadlessCommandAndAgentLoad
       ? null
       : agentDefsPromise ?? getAgentDefinitionsWithOverrides(currentCwd);
-    commandsReadyPromise?.catch(() => {});
-    agentDefsReadyPromise?.catch(() => {});
+    swallow(commandsReadyPromise ?? Promise.resolve(), 'commands ready fetch');
+    swallow(agentDefsReadyPromise ?? Promise.resolve(), 'agent defs ready fetch');
     let commands: Command[] = [];
     let agentDefinitionsResult: Awaited<ReturnType<typeof getAgentDefinitionsWithOverrides>> = {
       activeAgents: [],
@@ -2536,7 +2530,7 @@ async function run(): Promise<CommanderCommand> {
     const hookMessages: Awaited<NonNullable<typeof hooksPromise>> = [];
     // Suppress transient unhandledRejection — the prefetch warms the
     // memoized connectToServer cache but nobody awaits it in interactive.
-    mcpPromise.catch(() => {});
+    swallow(mcpPromise, 'interactive MCP server connect');
     const mcpClients: Awaited<typeof mcpPromise>['clients'] = [];
     const mcpTools: Awaited<typeof mcpPromise>['tools'] = [];
     const mcpCommands: Awaited<typeof mcpPromise>['commands'] = [];
@@ -2697,7 +2691,7 @@ async function run(): Promise<CommanderCommand> {
       // Suppress transient unhandledRejection if this rejects before
       // loadInitialMessages awaits it. Downstream await still observes the
       // rejection — this just prevents the spurious global handler fire.
-      sessionStartHooksPromise?.catch(() => {});
+      swallow(sessionStartHooksPromise ?? Promise.resolve(), 'session start hooks');
       profileCheckpoint('before_validateForceLoginOrg');
       // Validate org restriction for non-interactive sessions
       const orgValidation = await validateForceLoginOrgForCurrentSession();
@@ -2870,7 +2864,7 @@ async function run(): Promise<CommanderCommand> {
             for (const c of headlessStore.getState().mcp.clients) {
               if (!suppressed.has(c.name) || c.type !== 'connected') continue;
               c.client.onclose = undefined;
-              void clearServerCache(c.name, c.config).catch(() => {});
+              swallow(clearServerCache(c.name, c.config), `clear MCP server cache ${c.name}`);
             }
             headlessStore.setState(prev => {
               let {
@@ -4216,8 +4210,7 @@ async function run(): Promise<CommanderCommand> {
         setDirectConnectServerUrl(serverUrl);
         connectConfig = session.config;
       } catch (err) {
-        // biome-ignore lint/suspicious/noConsole: intentional error output
-        console.error(err instanceof DirectConnectError ? err.message : String(err));
+        cliPrintError(err instanceof DirectConnectError ? err.message : String(err));
         process.exit(1);
       }
       const {

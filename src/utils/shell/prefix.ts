@@ -10,6 +10,7 @@
 import chalk from 'chalk'
 import type { QuerySource } from '../../constants/querySource.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
+import { cliPrintWarn } from '../cliOutput.js'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
@@ -203,8 +204,7 @@ async function getCommandPrefixImpl(
         if (nonInteractive) {
           process.stderr.write(jsonStringify({ level: 'warn', message }) + '\n')
         } else {
-          // biome-ignore lint/suspicious/noConsole: intentional warning
-          console.warn(chalk.yellow(`⚠️  ${message}`))
+          cliPrintWarn(chalk.yellow(`⚠️  ${message}`))
         }
       },
       10000, // 10 seconds

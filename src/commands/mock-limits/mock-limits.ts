@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import type { LocalCommandCall } from '../../types/command.js'
 import {
   addExceededLimit,
@@ -161,7 +162,7 @@ function errorWithUsage(message: string): { type: 'text'; value: string } {
 }
 
 export const call: LocalCommandCall = async args => {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return ok('`/mock-limits` is only available in ANT builds.')
   }
 

@@ -122,8 +122,10 @@ function sanitizeMessageHTML(message: string): string {
 export function sanitizeAPIError(apiError: APIError): string {
   const message = apiError.message
   if (!message) {
-    // Sometimes message is undefined
-    // TODO: figure out why
+    // API error messages can be undefined when the error originates from a
+    // network failure (no HTTP response body to parse) or a non-JSON error
+    // envelope. Returning '' lets callers fall through to their own
+    // fallback message rather than rendering 'undefined'.
     return ''
   }
   return sanitizeMessageHTML(message)

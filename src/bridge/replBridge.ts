@@ -9,6 +9,7 @@ import {
 import type { BridgeConfig, BridgeApiClient } from './types.js'
 import { logForDebugging } from '../utils/debug.js'
 import { logForDiagnosticsNoPII } from '../utils/diagLogs.js'
+import { swallow } from '../utils/swallow.js'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
@@ -797,7 +798,7 @@ export async function initBridgeCore(
     currentSessionId = newSessionId
     // Re-publish to the PID file so peer dedup (peerRegistry.ts) picks up the
     // new ID — setReplBridgeHandle only fires at init/teardown, not reconnect.
-    void updateSessionBridgeId(toCompatSessionId(newSessionId)).catch(() => {})
+    swallow(updateSessionBridgeId(toCompatSessionId(newSessionId)), 'update session bridge id on reconnect')
     // Reset per-session transport state IMMEDIATELY after the session swap,
     // before any await. If this runs after `await writeBridgePointer` below,
     // there's a window where handle.bridgeSessionId already returns session B

@@ -88,7 +88,7 @@ export function isBetaTracingEnabled(): boolean {
   // For external users, enable in SDK/headless mode OR when org is allowlisted.
   // Gate reads from disk cache, so first run after allowlisting returns false;
   // works from second run onward (same behavior as enhanced_telemetry_beta).
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return (
       getIsNonInteractiveSession() ||
       getFeatureValue_CACHED_MAY_BE_STALE('ncode_trace_lantern', false)

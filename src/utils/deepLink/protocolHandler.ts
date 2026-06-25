@@ -13,6 +13,7 @@
 
 import { homedir } from 'os'
 import { logForDebugging } from '../debug.js'
+import { cliPrintError } from '../cliOutput.js'
 import {
   filterExistingPaths,
   getKnownPathsForRepo,
@@ -41,8 +42,7 @@ export async function handleDeepLinkUri(uri: string): Promise<number> {
     action = parseDeepLink(uri)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    // biome-ignore lint/suspicious/noConsole: intentional error output
-    console.error(`Deep link error: ${message}`)
+    cliPrintError(`Deep link error: ${message}`)
     return 1
   }
 
@@ -64,8 +64,7 @@ export async function handleDeepLinkUri(uri: string): Promise<number> {
     lastFetchMs: lastFetch?.getTime(),
   })
   if (!launched) {
-    // biome-ignore lint/suspicious/noConsole: intentional error output
-    console.error(
+    cliPrintError(
       'Failed to open a terminal. Make sure a supported terminal emulator is installed.',
     )
     return 1
