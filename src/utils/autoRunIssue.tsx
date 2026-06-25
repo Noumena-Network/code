@@ -82,7 +82,7 @@ export type AutoRunIssueReason = 'feedback_survey_bad' | 'feedback_survey_good';
  */
 export function shouldAutoRunIssue(reason: AutoRunIssueReason): boolean {
   // Only for Ant users
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return false;
   }
   switch (reason) {

@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import {
   fetchAndStoreUserRoles,
   refreshOAuthToken,
@@ -109,7 +110,7 @@ async function runRefresh(context: Parameters<LocalCommandCall>[1]): Promise<str
 }
 
 export const call: LocalCommandCall = async (args, context) => {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return text('`/oauth-refresh` is only available in ANT builds.')
   }
 

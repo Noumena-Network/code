@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import { feature } from 'bun:bundle'
 import { stat } from 'fs/promises'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
@@ -219,7 +220,7 @@ function formatReport(report: TraceReport): string {
 }
 
 export const call: LocalCommandCall = async args => {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return text('`/ant-trace` is only available in ANT builds.')
   }
 

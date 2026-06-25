@@ -121,7 +121,7 @@ function logClassifierResultForAnts(
   descriptions: string[],
   result: ClassifierResult,
 ): void {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return
   }
 

@@ -347,8 +347,7 @@ const COMMANDS = memoize((): Command[] => {
     tasks,
     ...(workflowsCmd ? [workflowsCmd] : []),
     ...(torch ? [torch] : []),
-    ...((process.env.NCODE_BUILD_MODE === 'noumena' ||
-      process.env.USER_TYPE === 'ant') &&
+    ...(isInternalBuild() &&
     !process.env.IS_DEMO
       ? INTERNAL_ONLY_COMMANDS
       : []),

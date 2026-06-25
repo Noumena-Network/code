@@ -1,8 +1,9 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import { isAutoMemoryEnabled } from '../../memdir/paths.js'
 import { registerBundledSkill } from '../bundledSkills.js'
 
 export function registerRememberSkill(): void {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return
   }
 

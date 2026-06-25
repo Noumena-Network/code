@@ -1,6 +1,7 @@
 import { feature } from 'bun:bundle'
 import chalk from 'chalk';
 import figures from 'figures';
+import { isInternalBuild } from 'src/capabilities/static.js';
 import * as React from 'react';
 import { color, Text } from '../ink.js';
 import { getAuthRuntime } from '../auth/runtime/AuthRuntime.js';
@@ -46,9 +47,6 @@ function formatGateStatus(enabled: boolean, blockedBy: string[]): string {
 }
 
 export function buildRuntimeModeProperties(): Property[] {
-  const isInternalBuild =
-    process.env.NCODE_BUILD_MODE === 'noumena' ||
-    process.env.USER_TYPE === 'ant'
   const buildFeatures = [
     `TRANSCRIPT_CLASSIFIER: ${feature('TRANSCRIPT_CLASSIFIER') ? 'on' : 'off'}`,
     `BUILTIN_EXPLORE_PLAN_AGENTS: ${feature('BUILTIN_EXPLORE_PLAN_AGENTS') ? 'on' : 'off'}`,
@@ -59,10 +57,7 @@ export function buildRuntimeModeProperties(): Property[] {
   ]
 
   const replBlockedBy: string[] = []
-  if (
-    process.env.NCODE_BUILD_MODE !== 'noumena' &&
-    process.env.USER_TYPE !== 'ant'
-  ) {
+  if (!isInternalBuild()) {
     replBlockedBy.push('internal build disabled')
   }
   if (
@@ -86,10 +81,7 @@ export function buildRuntimeModeProperties(): Property[] {
   }
 
   const jsReplBlockedBy: string[] = []
-  if (
-    process.env.NCODE_BUILD_MODE !== 'noumena' &&
-    process.env.USER_TYPE !== 'ant'
-  ) {
+  if (!isInternalBuild()) {
     jsReplBlockedBy.push('internal build disabled')
   }
   if (
@@ -110,9 +102,9 @@ export function buildRuntimeModeProperties(): Property[] {
   }
 
   const verifyPlanEnabled =
-    isInternalBuild && isEnvTruthy(process.env.CLAUDE_CODE_VERIFY_PLAN)
+    isInternalBuild() && isEnvTruthy(process.env.CLAUDE_CODE_VERIFY_PLAN)
   const verifyPlanBlockedBy: string[] = []
-  if (!isInternalBuild) {
+  if (!isInternalBuild()) {
     verifyPlanBlockedBy.push('internal build disabled')
   }
   if (!isEnvTruthy(process.env.CLAUDE_CODE_VERIFY_PLAN)) {
@@ -143,7 +135,7 @@ export function buildRuntimeModeProperties(): Property[] {
   return [
     {
       label: 'Build mode',
-      value: isInternalBuild ? 'internal (noumena)' : 'external',
+      value: isInternalBuild() ? 'internal (noumena)' : 'external',
     },
     {
       label: 'Build features',
@@ -163,7 +155,7 @@ export function buildRuntimeModeProperties(): Property[] {
     },
     {
       label: 'SuggestBackgroundPR',
-      value: isInternalBuild ? 'compiled into this build' : 'not compiled',
+      value: isInternalBuild() ? 'compiled into this build' : 'not compiled',
     },
     {
       label: 'agents-platform',
@@ -173,10 +165,7 @@ export function buildRuntimeModeProperties(): Property[] {
 }
 
 export function buildSandboxProperties(): Property[] {
-  if (
-    process.env.NCODE_BUILD_MODE !== 'noumena' &&
-    process.env.USER_TYPE !== 'ant'
-  ) {
+  if (!isInternalBuild()) {
     return [];
   }
   const isSandboxed = SandboxManager.isSandboxingEnabled();

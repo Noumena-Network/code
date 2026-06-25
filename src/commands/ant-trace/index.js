@@ -1,9 +1,10 @@
+import { isInternalBuild } from '../../capabilities/static.js'
 const antTrace = {
   type: 'local',
   name: 'ant-trace',
   description: 'Show internal tracing and trace-file diagnostics',
   argumentHint: '[status|flush|--json]',
-  isEnabled: () => (process.env.NCODE_BUILD_MODE === 'noumena' || process.env.USER_TYPE === 'ant'),
+  isEnabled: () => isInternalBuild(),
   isHidden: true,
   immediate: true,
   supportsNonInteractive: true,

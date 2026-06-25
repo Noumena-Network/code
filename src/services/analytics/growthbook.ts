@@ -239,7 +239,7 @@ export function hasGrowthBookEnvOverride(feature: string): boolean {
  * until the next saveGlobalConfig() invalidates it.
  */
 function getConfigOverrides(): Record<string, unknown> | undefined {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) return undefined
+  if (!isInternalBuild()) return undefined
   try {
     return getGlobalConfig().growthBookOverrides
   } catch {
@@ -276,7 +276,7 @@ export function setGrowthBookConfigOverride(
   feature: string,
   value: unknown,
 ): void {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) return
+  if (!isInternalBuild()) return
   const canonicalFeature = toCanonicalAnalyticsName(feature)
   try {
     saveGlobalConfig(c => {
@@ -302,7 +302,7 @@ export function setGrowthBookConfigOverride(
 }
 
 export function clearGrowthBookConfigOverrides(): void {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) return
+  if (!isInternalBuild()) return
   try {
     saveGlobalConfig(c => {
       if (
@@ -1177,7 +1177,7 @@ export function resetGrowthBook(): void {
 
 // Periodic refresh interval (matches Statsig's 6-hour interval)
 const GROWTHBOOK_REFRESH_INTERVAL_MS =
-  (process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')
+  !isInternalBuild()
     ? 6 * 60 * 60 * 1000 // 6 hours
     : 20 * 60 * 1000 // 20 min (for ants)
 let refreshInterval: ReturnType<typeof setInterval> | null = null

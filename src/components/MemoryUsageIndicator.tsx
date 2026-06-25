@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import * as React from 'react';
 import { useMemoryUsage } from '../hooks/useMemoryUsage.js';
 import { Box, Text } from '../ink.js';
@@ -7,7 +8,7 @@ export function MemoryUsageIndicator(): React.ReactNode {
   // the hook means the 10s polling interval is never set up in external builds.
   // USER_TYPE is a build-time constant, so the hook call below is either always
   // reached or dead-code-eliminated — never conditional at runtime.
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return null;
   }
 

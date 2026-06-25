@@ -543,8 +543,10 @@ function uriToFilePath(uri: string): string {
   }
   try {
     filePath = decodeURIComponent(filePath)
-  } catch {
-    // Use un-decoded path if malformed
+  } catch (error) {
+    logForDebugging(
+      `[lsp] decodeURIComponent failed for path (prefix=${filePath.slice(0, 60)}): ${error instanceof Error ? error.message : String(error)}`,
+    )
   }
   return filePath
 }

@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { constants as fsConstants } from 'fs'
 import { access, writeFile } from 'fs/promises'
+import { cliPrintError } from './cliOutput.js'
 import { homedir } from 'os'
 import { join } from 'path'
 import { getDynamicConfig_BLOCKS_ON_INIT } from 'src/services/analytics/growthbook.js'
@@ -82,8 +83,7 @@ export async function assertMinVersion(): Promise<void> {
       versionConfig.minVersion &&
       lt(MACRO.VERSION, versionConfig.minVersion)
     ) {
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.error(`
+      cliPrintError(`
 It looks like your version of Code (${MACRO.VERSION}) needs an update.
 A newer version (${versionConfig.minVersion} or higher) is required to continue.
 
@@ -420,7 +420,7 @@ export async function getGcsDistTags(): Promise<NpmDistTags> {
  * 3. This prevents rollback from listing versions that don't have native binaries
  */
 export async function getVersionHistory(limit: number): Promise<string[]> {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return []
   }
 
@@ -479,8 +479,7 @@ export async function installGlobalPackage(
         currentVersion:
           MACRO.VERSION as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       })
-      // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.error(`
+      cliPrintError(`
 Error: Windows NPM detected in WSL
 
 You're running Code in WSL but using the Windows NPM installation from /mnt/c/.

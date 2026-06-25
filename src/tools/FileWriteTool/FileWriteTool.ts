@@ -17,6 +17,7 @@ import { buildTool, type ToolDef } from '../../Tool.js'
 import { getCwd } from '../../utils/cwd.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { countLinesChanged, getPatchForDisplay } from '../../utils/diff.js'
+import { swallow } from '../../utils/swallow.js'
 import { isEnvTruthy } from '../../utils/envUtils.js'
 import { isENOENT } from '../../utils/errors.js'
 import { getFileModificationTime, writeTextContent } from '../../utils/file.js'
@@ -238,7 +239,7 @@ export const FileWriteTool = buildTool({
         dynamicSkillDirTriggers?.add(dir)
       }
       // Don't await - let skill loading happen in the background
-      addSkillDirectories(newSkillDirs).catch(() => {})
+      swallow(addSkillDirectories(newSkillDirs), 'addSkillDirectories (FileWriteTool)')
     }
 
     // Activate conditional skills whose path patterns match this file

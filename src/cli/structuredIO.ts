@@ -41,6 +41,7 @@ import { jsonStringify } from 'src/utils/slowOperations.js'
 import { z } from 'zod/v4'
 import { notifyCommandLifecycle } from '../utils/commandLifecycle.js'
 import { normalizeControlMessageKeys } from '../utils/controlMessageCompat.js'
+import { cliPrintError } from '../utils/cliOutput.js'
 import { executePermissionRequestHooks } from '../utils/hooks.js'
 import {
   applyPermissionUpdates,
@@ -456,7 +457,7 @@ export class StructuredIO {
       }
       return message
     } catch (error) {
-      console.error(`Error parsing streaming input line: ${line}: ${error}`)
+      cliPrintError(`Error parsing streaming input line: ${line}: ${error}`)
       cliError()
     }
   }
@@ -679,8 +680,7 @@ export class StructuredIO {
           )
           return result
         } catch (error) {
-          // biome-ignore lint/suspicious/noConsole:: intentional console output
-          console.error(`Error in hook callback ${callbackId}:`, error)
+          cliPrintError(`Error in hook callback ${callbackId}:`, error)
           return {}
         }
       },

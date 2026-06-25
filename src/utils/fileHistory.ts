@@ -1,6 +1,7 @@
 import { createHash, type UUID } from 'crypto'
 import { diffLines } from 'diff'
 import type { Stats } from 'fs'
+import { cliPrintError } from './cliOutput.js'
 import {
   chmod,
   copyFile,
@@ -1109,7 +1110,6 @@ async function readFileAsyncOrNull(path: string): Promise<string | null> {
 const ENABLE_DUMP_STATE = false
 function maybeDumpStateForDebug(state: FileHistoryState): void {
   if (ENABLE_DUMP_STATE) {
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.error(inspect(state, false, 5))
+    cliPrintError(inspect(state, false, 5))
   }
 }

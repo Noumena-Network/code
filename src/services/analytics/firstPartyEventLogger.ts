@@ -13,6 +13,7 @@ import { isEqual } from 'lodash-es'
 import { getOrCreateUserID } from '../../utils/config.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { logError } from '../../utils/log.js'
+import { swallow } from '../../utils/swallow.js'
 import { getPlatform, getWslVersion } from '../../utils/platform.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import { profileCheckpoint } from '../../utils/startupProfiler.js'
@@ -446,5 +447,5 @@ export async function reinitialize1PEventLoggingIfConfigChanged(): Promise<void>
     return
   }
 
-  void oldProvider.shutdown().catch(() => {})
+  swallow(oldProvider.shutdown(), 'shutdown old analytics provider')
 }

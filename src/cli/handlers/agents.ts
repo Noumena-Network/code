@@ -15,6 +15,7 @@ import {
   getActiveAgentsFromList,
   getAgentDefinitionsWithOverrides,
 } from '../../tools/AgentTool/loadAgentsDir.js'
+import { cliPrint } from '../../utils/cliOutput.js'
 import { getCwd } from '../../utils/cwd.js'
 
 function formatAgent(agent: ResolvedAgent): string {
@@ -59,12 +60,9 @@ export async function agentsHandler(): Promise<void> {
   }
 
   if (lines.length === 0) {
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log('No agents found.')
+    cliPrint('No agents found.')
   } else {
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(`${totalActive} active agents\n`)
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(lines.join('\n').trimEnd())
+    cliPrint(`${totalActive} active agents\n`)
+    cliPrint(lines.join('\n').trimEnd())
   }
 }

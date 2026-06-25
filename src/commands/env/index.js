@@ -1,3 +1,4 @@
+import { isInternalBuild } from '../../capabilities/static.js'
 import { feature } from 'bun:bundle'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
 import {
@@ -124,9 +125,9 @@ function buildBaseRuntimeReport() {
   const buildMode = process.env.NCODE_BUILD_MODE ?? null
   const userType = process.env.USER_TYPE ?? 'external'
   const noumenaMode = buildMode === 'noumena' || buildMode === 'n'
-  const isInternalBuild = noumenaMode || userType === 'ant'
+  const internalBuild = noumenaMode || userType === 'ant'
   const isDemo = isEnvTruthy(process.env.IS_DEMO)
-  const internalCommandSetEnabled = isInternalBuild && !isDemo
+  const internalCommandSetEnabled = internalBuild && !isDemo
   const buildFeatures = getBuildFeatureStates()
 
   const agentsPlatform = {
@@ -156,7 +157,7 @@ function buildBaseRuntimeReport() {
   }
 
   const hiddenReasons = []
-  if (!isInternalBuild) {
+  if (!internalBuild) {
     hiddenReasons.push(
       'this bundle was built without Noumena internal compatibility enabled',
     )
@@ -170,7 +171,7 @@ function buildBaseRuntimeReport() {
     buildMode,
     noumenaMode,
     userType,
-    isInternalBuild,
+    isInternalBuild: internalBuild,
     internalCommandSetEnabled,
     buildFeatures,
     commandRuntimeGates: {
@@ -308,9 +309,7 @@ async function getCommandReasons(
     case 'cost':
       if (
         isCostCommandAuthHiddenForContext({
-          isInternalBuild:
-            process.env.NCODE_BUILD_MODE === 'noumena' ||
-            process.env.USER_TYPE === 'ant',
+          isInternalBuild: isInternalBuild(),
           session: modules.commandSession,
         })
       ) {
@@ -640,7 +639,7 @@ const env = {
   name: 'env',
   description: 'Show runtime build mode and internal gate diagnostics',
   supportsNonInteractive: true,
-  isEnabled: () => (process.env.NCODE_BUILD_MODE === 'noumena' || process.env.USER_TYPE === 'ant'),
+  isEnabled: () => isInternalBuild(),
   load: () => Promise.resolve({ call }),
 }
 

@@ -1,6 +1,7 @@
 import memoize from 'lodash-es/memoize.js'
 import * as path from 'path'
 import * as pathWin32 from 'path/win32'
+import { cliPrintError } from './cliOutput.js'
 import { getCwd } from './cwd.js'
 import { logForDebugging } from './debug.js'
 import { execSync_DEPRECATED } from './execSyncWrapper.js'
@@ -100,8 +101,7 @@ export const findGitBashPath = memoize((): string => {
     if (checkPathExists(process.env.CLAUDE_CODE_GIT_BASH_PATH)) {
       return process.env.CLAUDE_CODE_GIT_BASH_PATH
     }
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.error(
+    cliPrintError(
       `Code was unable to find CLAUDE_CODE_GIT_BASH_PATH path "${process.env.CLAUDE_CODE_GIT_BASH_PATH}"`,
     )
     // eslint-disable-next-line custom-rules/no-process-exit
@@ -115,9 +115,7 @@ export const findGitBashPath = memoize((): string => {
       return bashPath
     }
   }
-
-  // biome-ignore lint/suspicious/noConsole:: intentional console output
-  console.error(
+  cliPrintError(
     'Code on Windows requires git-bash (https://git-scm.com/downloads/win). If installed but not in PATH, set environment variable pointing to your bash.exe, similar to: CLAUDE_CODE_GIT_BASH_PATH=C:\\Program Files\\Git\\bin\\bash.exe',
   )
   // eslint-disable-next-line custom-rules/no-process-exit

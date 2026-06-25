@@ -3222,6 +3222,24 @@ async function assemblePluginLoadResult(
  * - After changing enabledPlugins settings
  * - When debugging plugin loading issues
  */
+/**
+ * Registered cache invalidators from modules that can't be imported here
+ * without creating a circular dependency (e.g. tools.ts). Each is invoked
+ * when clearPluginCache() runs so downstream caches that depend on plugin
+ * state are invalidated alongside the plugin cache.
+ */
+const downstreamCacheInvalidators: Array<() => void> = []
+
+/**
+ * Register a cache invalidator for a module that maintains its own cache
+ * derived from plugin state. Called once at module-eval time by registrants
+ * (e.g. tools.ts registers clearAllBaseToolsCache). Avoids circular imports
+ * while ensuring clearPluginCache() transitively busts dependent caches.
+ */
+export function registerDownstreamCacheInvalidator(fn: () => void): void {
+  downstreamCacheInvalidators.push(fn)
+}
+
 export function clearPluginCache(reason?: string): void {
   if (reason) {
     logForDebugging(
@@ -3240,6 +3258,15 @@ export function clearPluginCache(reason?: string): void {
   }
   clearPluginSettingsBase()
   // TODO: Clear installed plugins cache when installedPluginsManager is implemented
+  // Invalidate downstream caches that derive from plugin state (e.g. the
+  // allBaseToolsCache in tools.ts, which includes plugin-contributed tools).
+  for (const invalidator of downstreamCacheInvalidators) {
+    try {
+      invalidator()
+    } catch {
+      // A failing invalidator shouldn't block the rest of cleanup.
+    }
+  }
 }
 
 /**

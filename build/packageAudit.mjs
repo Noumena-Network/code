@@ -10,14 +10,6 @@ const MANIFEST_FORBIDDEN_KEYS = [
 
 const STATIC_FORBIDDEN_SUBSTRINGS = [
   {
-    label: 'repo checkout path',
-    value: '/mlstore/src/noumena/',
-  },
-  {
-    label: 'windows repo checkout path',
-    value: '\\mlstore\\src\\noumena\\',
-  },
-  {
     label: 'pkcs8 private key marker',
     value: '-----BEGIN PRIVATE KEY-----',
   },

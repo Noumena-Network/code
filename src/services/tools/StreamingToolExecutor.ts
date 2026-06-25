@@ -12,6 +12,7 @@ import { createChildAbortController } from '../../utils/abortController.js'
 import { errorMessage } from '../../utils/errors.js'
 import { logError } from '../../utils/log.js'
 import { runToolUse } from './toolExecution.js'
+import { isToolConcurrencySafe } from './toolConcurrency.js'
 
 type MessageUpdate = {
   message?: Message
@@ -103,16 +104,7 @@ export class StreamingToolExecutor {
       return
     }
 
-    const parsedInput = toolDefinition.inputSchema.safeParse(block.input)
-    const isConcurrencySafe = parsedInput?.success
-      ? (() => {
-          try {
-            return Boolean(toolDefinition.isConcurrencySafe(parsedInput.data))
-          } catch {
-            return false
-          }
-        })()
-      : false
+    const isConcurrencySafe = isToolConcurrencySafe(toolDefinition, block.input)
     this.tools.push({
       id: block.id,
       block,

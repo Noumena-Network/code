@@ -8,6 +8,7 @@
  */
 import { cliError, cliOk } from '../../cli/exit.js'
 import figures from 'figures'
+import { cliPrint, cliPrintError } from '../../utils/cliOutput.js'
 import { errorMessage } from '../../utils/errors.js'
 import { gracefulShutdown } from '../../utils/gracefulShutdown.js'
 import { logError } from '../../utils/log.js'
@@ -62,8 +63,7 @@ function handlePluginCommandError(
     : command === 'disable-all'
       ? 'disable all plugins'
       : `${command} plugins`
-  // biome-ignore lint/suspicious/noConsole:: intentional console output
-  console.error(
+  cliPrintError(
     `${figures.cross} Failed to ${operation}: ${errorMessage(error)}`,
   )
   const telemetryFields = plugin
@@ -105,17 +105,14 @@ export async function installPlugin(
   scope: InstallableScope = 'user',
 ): Promise<void> {
   try {
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(`Installing plugin "${plugin}"...`)
+    cliPrint(`Installing plugin "${plugin}"...`)
 
     const result = await installPluginOp(plugin, scope)
 
     if (!result.success) {
       throw new Error(result.message)
     }
-
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(`${figures.tick} ${result.message}`)
+    cliPrint(`${figures.tick} ${result.message}`)
 
     // _PROTO_* routes to PII-tagged plugin_name/marketplace_name BQ columns.
     // Unredacted plugin_id was previously logged to general-access
@@ -160,9 +157,7 @@ export async function uninstallPlugin(
     if (!result.success) {
       throw new Error(result.message)
     }
-
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(`${figures.tick} ${result.message}`)
+    cliPrint(`${figures.tick} ${result.message}`)
 
     const { name, marketplace } = parsePluginIdentifier(
       result.pluginId || plugin,
@@ -200,9 +195,7 @@ export async function enablePlugin(
     if (!result.success) {
       throw new Error(result.message)
     }
-
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(`${figures.tick} ${result.message}`)
+    cliPrint(`${figures.tick} ${result.message}`)
 
     const { name, marketplace } = parsePluginIdentifier(
       result.pluginId || plugin,
@@ -240,9 +233,7 @@ export async function disablePlugin(
     if (!result.success) {
       throw new Error(result.message)
     }
-
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(`${figures.tick} ${result.message}`)
+    cliPrint(`${figures.tick} ${result.message}`)
 
     const { name, marketplace } = parsePluginIdentifier(
       result.pluginId || plugin,
@@ -275,9 +266,7 @@ export async function disableAllPlugins(): Promise<void> {
     if (!result.success) {
       throw new Error(result.message)
     }
-
-    // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(`${figures.tick} ${result.message}`)
+    cliPrint(`${figures.tick} ${result.message}`)
 
     logEvent('ncode_plugin_disabled_all_cli', {})
 

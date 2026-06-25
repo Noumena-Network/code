@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import { getSessionMemoryContent } from '../../services/SessionMemory/sessionMemoryUtils.js'
 import type { Message } from '../../types/message.js'
 import { getMessagesAfterCompactBoundary } from '../../utils/messages.js'
@@ -156,7 +157,7 @@ After writing, tell the user:
 `
 
 export function registerSkillifySkill(): void {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return
   }
 

@@ -14,6 +14,7 @@ import {
   resolveNCodeManagedModel,
 } from '../../utils/model/ncodeModels.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
+import { swallow } from '../../utils/swallow.js'
 import type {
   InferenceClient,
   InferenceCountTokensArgs,
@@ -1103,7 +1104,7 @@ async function* streamOpenAIChatCompletionAsAnthropicEvents(
   const reader = response.body.getReader()
   const streamController = controller ?? new AbortController()
   const onAbort = () => {
-    void reader.cancel().catch(() => {})
+    swallow(reader.cancel(), 'cancel reader on abort')
   }
   if (streamController.signal.aborted) {
     onAbort()

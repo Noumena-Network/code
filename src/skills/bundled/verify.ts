@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import { parseFrontmatter } from '../../utils/frontmatterParser.js'
 import { registerBundledSkill } from '../bundledSkills.js'
 import { SKILL_FILES, SKILL_MD } from './verifyContent.js'
@@ -10,7 +11,7 @@ const DESCRIPTION =
     : 'Verify a code change does what it should by running the app.'
 
 export function registerVerifySkill(): void {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return
   }
 

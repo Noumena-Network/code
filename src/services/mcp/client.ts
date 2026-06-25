@@ -57,6 +57,7 @@ import { ReadMcpResourceTool } from '../../tools/ReadMcpResourceTool/ReadMcpReso
 import { createAbortController } from '../../utils/abortController.js'
 import { count } from '../../utils/array.js'
 import { registerCleanup } from '../../utils/cleanupRegistry.js'
+import { swallow } from '../../utils/swallow.js'
 import { detectCodeIndexingFromMcpServerName } from '../../utils/codeIndexing.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { isEnvDefinedFalsy, isEnvTruthy } from '../../utils/envUtils.js'
@@ -1055,9 +1056,9 @@ export const connectToServer = memoizeAsyncWithLRU(
             `Connection timeout triggered after ${elapsed}ms (limit: ${getConnectionTimeoutMs()}ms)`,
           )
           if (inProcessServer) {
-            inProcessServer.close().catch(() => {})
+            swallow(inProcessServer.close(), 'close in-process MCP server')
           }
-          transport.close().catch(() => {})
+          swallow(transport.close(), 'close MCP transport')
           reject(
             new TelemetrySafeError_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS(
               `MCP server "${name}" connection timed out after ${getConnectionTimeoutMs()}ms`,
@@ -1146,9 +1147,9 @@ export const connectToServer = memoizeAsyncWithLRU(
           })
         }
         if (inProcessServer) {
-          inProcessServer.close().catch(() => {})
+          swallow(inProcessServer.close(), 'close in-process MCP server')
         }
-        transport.close().catch(() => {})
+        swallow(transport.close(), 'close MCP transport')
         if (stderrOutput) {
           logMCPError(name, `Server stderr: ${stderrOutput}`)
         }
@@ -1628,7 +1629,7 @@ export const connectToServer = memoizeAsyncWithLRU(
       logMCPError(name, `Connection failed: ${errorMessage(error)}`)
 
       if (inProcessServer) {
-        inProcessServer.close().catch(() => {})
+        swallow(inProcessServer.close(), 'close in-process MCP server')
       }
       return {
         name,

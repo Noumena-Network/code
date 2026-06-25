@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import axios from 'axios'
 import { createHash } from 'crypto'
 import memoize from 'lodash-es/memoize.js'
@@ -221,7 +222,7 @@ export async function trackDatadogEvent(
     }
 
     // Normalize model names for cardinality reduction (external users only)
-    if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant') && typeof allData.model === 'string') {
+    if (!isInternalBuild() && typeof allData.model === 'string') {
       const shortName = getCanonicalName(allData.model.replace(/\[1m]$/i, ''))
       allData.model = shortName in MODEL_COSTS ? shortName : 'other'
     }

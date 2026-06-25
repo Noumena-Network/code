@@ -10,6 +10,7 @@
  * log.ts has NO heavy dependencies - events are queued until this sink is attached.
  */
 
+import { isInternalBuild } from 'src/capabilities/static.js'
 import axios from 'axios'
 import { dirname, join } from 'path'
 import { getSessionId } from '../bootstrap/state.js'
@@ -109,7 +110,7 @@ function getLogWriter(path: string): JsonlWriter {
 }
 
 function appendToLog(path: string, message: object): void {
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     return
   }
 

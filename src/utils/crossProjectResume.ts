@@ -1,3 +1,4 @@
+import { isInternalBuild } from 'src/capabilities/static.js'
 import { sep } from 'path'
 import { getOriginalCwd } from '../bootstrap/state.js'
 import type { LogOption } from '../types/logs.js'
@@ -39,7 +40,7 @@ export function checkCrossProjectResume(
   }
 
   // Gate worktree detection to ants only for staged rollout
-  if ((process.env.NCODE_BUILD_MODE !== 'noumena' && process.env.USER_TYPE !== 'ant')) {
+  if (!isInternalBuild()) {
     const sessionId = getSessionIdFromLog(log)
     const command = `cd ${quote([log.projectPath])} && ncode --resume ${sessionId}`
     return {
