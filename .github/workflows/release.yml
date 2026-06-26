@@ -222,12 +222,19 @@ jobs:
           version="${{ needs.preflight.outputs.version }}"
           slug="${{ matrix.target }}"
           slug="${slug#bun-}"
+          source_base="ncode-${version}-${slug}"
           base="ncode-${version}${{ matrix.asset_suffix }}-${slug}"
           zip_path="$OUT_DIR/${base}.zip"
-          manifest_path="$OUT_DIR/${base}/manifest.json"
+          manifest_path="$OUT_DIR/${source_base}/manifest.json"
 
-          test -f "$zip_path"
+          test -f "$OUT_DIR/${source_base}.zip"
           test -f "$manifest_path"
+          if [[ "$source_base" != "$base" ]]; then
+            mv "$OUT_DIR/${source_base}.zip" "$zip_path"
+          else
+            zip_path="$OUT_DIR/${source_base}.zip"
+          fi
+          test -f "$zip_path"
 
           shasum -a 256 "$zip_path" > "$OUT_DIR/${base}.zip.sha256"
           cp "$manifest_path" "$OUT_DIR/${base}.manifest.json"
