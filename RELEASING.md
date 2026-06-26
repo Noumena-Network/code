@@ -67,13 +67,15 @@ A release is not ready to tag until the dry-run succeeds for all release targets
 8. After merge, run a `Release` workflow dry-run with `publish=false` on the merge commit.
 9. After the dry-run succeeds, create and push tag `vX.Y.Z` on the merge commit on `main`. The GitHub Actions release workflow validates the tag, builds Linux and macOS artifacts, and publishes the GitHub release. Release notes are pulled from the `## [VERSION]` section verbatim.
 
-The release workflow currently publishes:
+The release workflow currently publishes two flavors per supported platform:
 
-- `ncode-VERSION-linux-x64.zip` from `ubuntu-24.04` (`bun-linux-x64`)
-- `ncode-VERSION-darwin-arm64.zip` from `macos-14` (`bun-darwin-arm64`)
-- `ncode-VERSION-darwin-x64.zip` from `macos-15-intel` (`bun-darwin-x64`)
+- `ncode-VERSION-linux-x64.zip` and `ncode-VERSION-dev-linux-x64.zip` from `ubuntu-24.04` (`bun-linux-x64`)
+- `ncode-VERSION-darwin-arm64.zip` and `ncode-VERSION-dev-darwin-arm64.zip` from `macos-14` (`bun-darwin-arm64`)
+- `ncode-VERSION-darwin-x64.zip` and `ncode-VERSION-dev-darwin-x64.zip` from `macos-15-intel` (`bun-darwin-x64`)
 - matching `.sha256` checksum files and `.manifest.json` files for each artifact
 - GitHub artifact attestations for the release assets
+
+Both flavors are published as public assets on the same GitHub release. Dev artifacts must follow the same secrets policy as default artifacts: no credentials, private tokens, or private registry pointers.
 
 Tags must point to commits reachable from `origin/main`, must match `package.json` (`v${version}`), and must have a matching `CHANGELOG.md` release section.
 

@@ -34,6 +34,7 @@ function parseArgs(argv) {
     buildMode: 'noumena',
     runBinaryChecks: true,
     runNativeProbe: true,
+    runExposureAudit: true,
     keepOutput: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -52,6 +53,8 @@ function parseArgs(argv) {
       args.runNativeProbe = false;
     } else if (arg === '--no-native-probe') {
       args.runNativeProbe = false;
+    } else if (arg === '--skip-exposure-audit') {
+      args.runExposureAudit = false;
     } else if (arg === '--keep-output') {
       args.keepOutput = true;
     } else {
@@ -111,13 +114,15 @@ function expectLinesInOrder(lines, expectedLines, label) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const sourceAuditFindings = runExposureAudit({
-    allowlist: getDefaultAllowlist(),
-  });
-  if (sourceAuditFindings.length > 0) {
-    throw new Error(
-      `Repo source exposure audit failed before build:\n${formatFindings(sourceAuditFindings)}`,
-    );
+  if (args.runExposureAudit) {
+    const sourceAuditFindings = runExposureAudit({
+      allowlist: getDefaultAllowlist(),
+    });
+    if (sourceAuditFindings.length > 0) {
+      throw new Error(
+        `Repo source exposure audit failed before build:\n${formatFindings(sourceAuditFindings)}`,
+      );
+    }
   }
 
   const tempRoot = args.outDir ??
