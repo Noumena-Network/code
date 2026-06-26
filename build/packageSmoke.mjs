@@ -24,7 +24,7 @@ const EXPECTED_IMAGE_PROCESSOR_FALLBACK_WARNING =
 // These are smoke-test budgets, not product latency SLOs. They catch broken
 // startup paths while allowing GitHub-hosted macOS x64 cold starts enough room
 // to avoid millisecond-level flakes after safe whitespace-only packaging.
-const VERSION_CHECK_BUDGET_MS = 3_000;
+const VERSION_CHECK_BUDGET_MS = 5_000;
 const HELP_CHECK_BUDGET_MS = 4_000;
 
 function parseArgs(argv) {
