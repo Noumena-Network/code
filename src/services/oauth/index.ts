@@ -12,8 +12,7 @@ import type {
   SubscriptionType,
 } from './types.js'
 
-const CALLBACK_RELAY_REGISTRATION_ATTEMPTS = 3
-const CALLBACK_RELAY_REGISTRATION_TIMEOUT_MS = 1000
+const CALLBACK_RELAY_REGISTRATION_TIMEOUT_MS = 5000
 const CALLBACK_RELAY_POLL_INTERVAL_MS = 250
 const LOGIN_PROFILE_FETCH_TIMEOUT_MS = 1000
 
@@ -70,7 +69,11 @@ export class OAuthService {
     const codeChallenge = crypto.generateCodeChallenge(this.codeVerifier)
     const state = crypto.generateState()
     const manualRelayId = crypto.generateState()
-    await this.registerCallbackRelayOrThrow(manualRelayId, state)
+    await client.registerOauthCallbackRelay({
+      relayId: manualRelayId,
+      state,
+      timeoutMs: CALLBACK_RELAY_REGISTRATION_TIMEOUT_MS,
+    })
 
     // Build auth URLs for both automatic and manual flows
     const opts = {
@@ -158,40 +161,6 @@ export class OAuthService {
       // Always cleanup
       this.authCodeListener?.close()
     }
-  }
-
-  private async registerCallbackRelayOrThrow(
-    relayId: string,
-    state: string,
-  ): Promise<void> {
-    let lastError: unknown
-    for (let attempt = 1; attempt <= CALLBACK_RELAY_REGISTRATION_ATTEMPTS; attempt += 1) {
-      try {
-        await client.registerOauthCallbackRelay({
-          relayId,
-          state,
-          timeoutMs: CALLBACK_RELAY_REGISTRATION_TIMEOUT_MS,
-        })
-        if (attempt > 1) {
-          logForDebugging(
-            `OAuth callback relay registration recovered on attempt ${attempt}`,
-          )
-        }
-        return
-      } catch (error) {
-        lastError = error
-        logForDebugging(
-          `OAuth callback relay registration attempt ${attempt} failed: ${oauthErrorMessage(error)}`,
-        )
-        if (attempt < CALLBACK_RELAY_REGISTRATION_ATTEMPTS) {
-          await delay(150 * attempt)
-        }
-      }
-    }
-
-    throw new Error(
-      `OAuth callback relay registration failed after ${CALLBACK_RELAY_REGISTRATION_ATTEMPTS} attempts: ${oauthErrorMessage(lastError)}`,
-    )
   }
 
   private async waitForAuthorizationCode(

@@ -154,22 +154,71 @@ function getOauthCallbackRelayEndpoint(path: string): string {
   return new URL(path, getOauthTokenUrl()).toString()
 }
 
+function isTransientError(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) {
+    return true
+  }
+  const code = error.code
+  if (
+    code === 'ECONNABORTED' ||
+    code === 'ETIMEDOUT' ||
+    code === 'ECONNRESET' ||
+    code === 'ENOTFOUND'
+  ) {
+    return true
+  }
+  const status = error.response?.status ?? 0
+  return status >= 500 || status === 429
+}
+
+async function withTransientRetry<T>(
+  fn: () => Promise<T>,
+  attempts = 3,
+  baseMs = 200,
+): Promise<T> {
+  let lastError: unknown = new Error('withTransientRetry did not execute')
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+      if (attempt >= attempts || !isTransientError(error)) {
+        break
+      }
+      logForDebugging(
+        `Transient retry ${attempt}/${attempts}: ${error instanceof Error ? error.message : String(error)}`,
+      )
+      const jitter = Math.random() * baseMs
+      await new Promise(resolve => setTimeout(resolve, baseMs * 2 ** (attempt - 1) + jitter))
+    }
+  }
+  throw lastError
+}
+
 export async function registerOauthCallbackRelay(params: {
   relayId: string
   state: string
   timeoutMs?: number
 }): Promise<void> {
-  await axios.post(
-    getOauthCallbackRelayEndpoint('/oauth/callback-relay/register'),
-    {
-      relay_id: params.relayId,
-      state: params.state,
-    },
-    {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: params.timeoutMs ?? 1000,
-    },
-  )
+  try {
+    await withTransientRetry(() =>
+      axios.post(
+        getOauthCallbackRelayEndpoint('/oauth/callback-relay/register'),
+        {
+          relay_id: params.relayId,
+          state: params.state,
+        },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: params.timeoutMs ?? 1000,
+        },
+      ),
+    )
+  } catch (error) {
+    throw new Error(
+      `OAuth callback relay registration failed: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
 }
 
 export async function pollOauthCallbackRelay(
