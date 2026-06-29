@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { randomUUID } from 'crypto'
-import { mkdirSync, writeFileSync } from 'fs'
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import {
   buildConversationChain,
   cleanMessagesForLogging,
   clearSessionMessagesCache,
+  flushSessionStorage,
   getAgentTranscript,
   getAgentTranscriptPath,
   loadAllLogsFromSessionFile,
@@ -423,5 +424,54 @@ describe('loadTranscriptFile parse diagnostics', () => {
     const result = await loadTranscriptFile(goodFile)
     expect(result.messages.size).toBe(2)
     expect(result.messages.get('u1')?.type).toBe('user')
+  })
+})
+
+describe('persistence recovery', () => {
+  let prevTestEnableSessionPersistence: string | undefined
+  beforeEach(() => {
+    prevTestEnableSessionPersistence = process.env.TEST_ENABLE_SESSION_PERSISTENCE
+    process.env.TEST_ENABLE_SESSION_PERSISTENCE = '1'
+  })
+  afterEach(() => {
+    if (prevTestEnableSessionPersistence === undefined) {
+      delete process.env.TEST_ENABLE_SESSION_PERSISTENCE
+    } else {
+      process.env.TEST_ENABLE_SESSION_PERSISTENCE = prevTestEnableSessionPersistence
+    }
+  })
+
+  it('resumes writes after a transient FS error clears', async () => {
+    const root = join(tmpdir(), 'ncode-persist-tests', randomUUID())
+    mkdirSync(root, { recursive: true, mode: 0o700 })
+    const sessionFile = join(root, 'session.jsonl')
+    writeFileSync(sessionFile, '')
+    setSessionFileForTesting(sessionFile)
+
+    const msg1 = createUserMessage('one')
+    await recordTranscript([msg1])
+    await flushSessionStorage()
+    expect(readFileSync(sessionFile, 'utf8')).toContain('one')
+
+    // Poison the parent directory: removing x bit makes name lookup fail
+    // with EACCES, an isFsInaccessible-class error.
+    try {
+      chmodSync(root, 0o000)
+
+      const msg2 = createUserMessage('two')
+      await recordTranscript([msg2])
+      await flushSessionStorage()
+    } finally {
+      chmodSync(root, 0o700)
+    }
+
+    // FS healthy again. The next message MUST persist - previously a
+    // single EACCES flipped persistenceUnavailable=true for the lifetime
+    // of the process and every subsequent write was silently dropped.
+    const msg3 = createUserMessage('three')
+    await recordTranscript([msg3])
+    await flushSessionStorage()
+
+    expect(readFileSync(sessionFile, 'utf8')).toContain('three')
   })
 })

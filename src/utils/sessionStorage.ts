@@ -564,6 +564,32 @@ export function setRemoteIngressUrlForTesting(url: string): void {
 }
 
 const REMOTE_FLUSH_INTERVAL_MS = 50
+const PERSISTENCE_WARN_INTERVAL_MS = 60_000
+
+// Out-of-band persistence failure record. logForDebugging is gated by
+// isDebugMode(), so OSS users get no visible signal when session writes
+// start failing. The flight recorder writes to a stable path that does
+// not depend on debug logging being enabled, so post-mortem diagnosis
+// works even in a default-config session.
+const PERSISTENCE_FAILURE_LOG_PATH = join(
+  getClaudeConfigHomeDir(),
+  'debug',
+  'persistence-failures.log',
+)
+
+async function appendPersistenceFailureLog(message: string): Promise<void> {
+  try {
+    await mkdir(dirname(PERSISTENCE_FAILURE_LOG_PATH), {
+      recursive: true,
+      mode: 0o700,
+    })
+    const line = `${new Date().toISOString()} sessionId=${getSessionId()} ${message}\n`
+    await fsAppendFile(PERSISTENCE_FAILURE_LOG_PATH, line, { mode: 0o600 })
+  } catch {
+    // Last-resort diagnostic path. Never let its own failure crash the
+    // process or mask the original FS error.
+  }
+}
 
 class Project {
   // Minimal cache for current session only (not all sessions)
@@ -602,8 +628,13 @@ class Project {
   private activeDrain: Promise<void> | null = null
   private FLUSH_INTERVAL_MS = 100
   private readonly MAX_CHUNK_BYTES = 100 * 1024 * 1024
-  private persistenceUnavailable = false
-  private persistenceUnavailableLogged = false
+  // Last time we surface-warned for the current persistence failure burst.
+  // Repeated failures in a long-lived session are throttled to one warn per
+  // PERSISTENCE_WARN_INTERVAL_MS; each write still attempts the real
+  // fsAppendFile so a transient FS condition (deleted parent dir, brief
+  // perms change, noisy NFS) recovers automatically instead of permanently
+  // dropping every subsequent write for the lifetime of the process.
+  private persistenceLastWarnedAt = 0
 
   constructor() {}
 
@@ -680,28 +711,24 @@ class Project {
     if (!isFsInaccessible(error)) {
       return false
     }
-    this.persistenceUnavailable = true
     this.pendingEntries = []
-    if (!this.persistenceUnavailableLogged) {
-      this.persistenceUnavailableLogged = true
-      logForDebugging(
-        `Session persistence disabled: ${context} (${errorMessage(error)})`,
-        { level: 'warn' },
-      )
+    const now = Date.now()
+    if (now - this.persistenceLastWarnedAt > PERSISTENCE_WARN_INTERVAL_MS) {
+      this.persistenceLastWarnedAt = now
+      const message = `Session persistence failing: ${context} (${errorMessage(error)}). Writes will retry when the filesystem recovers.`
+      logForDebugging(message, { level: 'warn' })
+      void appendPersistenceFailureLog(message)
     }
     return true
   }
 
   private async appendToFile(filePath: string, data: string): Promise<boolean> {
-    if (this.persistenceUnavailable) {
-      return false
-    }
     try {
       await fsAppendFile(filePath, data, { mode: 0o600 })
       return true
     } catch (error) {
-      if (this.disablePersistenceForError(error, `append ${filePath}`)) {
-        return false
+      if (!isFsInaccessible(error)) {
+        throw error
       }
       // Directory may not exist — some NFS-like filesystems return
       // unexpected error codes, so don't discriminate on code.
@@ -710,12 +737,11 @@ class Project {
         await fsAppendFile(filePath, data, { mode: 0o600 })
         return true
       } catch (retryError) {
-        if (
+        if (isFsInaccessible(retryError)) {
           this.disablePersistenceForError(
             retryError,
             `append retry ${filePath}`,
           )
-        ) {
           return false
         }
         throw retryError
@@ -1045,7 +1071,6 @@ class Project {
     return (
       (getNodeEnv() === 'test' && !allowTestPersistence) ||
       getSettings_DEPRECATED()?.cleanupPeriodDays === 0 ||
-      this.persistenceUnavailable ||
       isSessionPersistenceDisabled() ||
       isEnvTruthy(process.env.CLAUDE_CODE_SKIP_PROMPT_HISTORY)
     )
