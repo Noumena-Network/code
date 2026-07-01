@@ -2,79 +2,131 @@
  * Download functionality for native installer
  *
  * Handles downloading NCode binaries from various sources:
- * - Artifactory NPM packages
- * - GCS bucket
+ * - public or internal binary repositories
  */
 
 import { feature } from 'bun:bundle'
 import axios from 'axios'
 import { createHash } from 'crypto'
+import { unzipSync } from 'fflate'
 import { chmod, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { logEvent } from 'src/services/analytics/index.js'
 import type { ReleaseChannel } from '../config.js'
 import { logForDebugging } from '../debug.js'
 import { toError } from '../errors.js'
-import { execFileNoThrowWithCwd } from '../execFileNoThrow.js'
 import { getFsImplementation } from '../fsOperations.js'
 import { logError } from '../log.js'
 import { sleep } from '../sleep.js'
-import { jsonStringify, writeFileSync_DEPRECATED } from '../slowOperations.js'
 import { getBinaryName, getPlatform } from './installer.js'
-import { isInternalBuild } from 'src/capabilities/static.js'
 
-// Anthropic-owned bucket removed for public launch. External builds must set
-// NCODE_NATIVE_PACKAGE_URL to a Noumena-owned public artifact URL.
+// Builds may bake this value into MACRO.NATIVE_PACKAGE_URL. Deployments can
+// override it with NCODE_NATIVE_PACKAGE_URL, including internal-only buckets.
 function getPublicBinaryUrl(): string | undefined {
   return MACRO.NATIVE_PACKAGE_URL || process.env.NCODE_NATIVE_PACKAGE_URL
 }
-export const ARTIFACTORY_REGISTRY_URL =
-  'https://artifactory.infra.ant.dev/artifactory/api/npm/npm-all/'
 
-export async function getLatestVersionFromArtifactory(
-  tag: string = 'latest',
-): Promise<string> {
-  const startTime = Date.now()
-  const { stdout, code, stderr } = await execFileNoThrowWithCwd(
-    'npm',
-    [
-      'view',
-      `${MACRO.NATIVE_PACKAGE_URL}@${tag}`,
-      'version',
-      '--prefer-online',
-      '--registry',
-      ARTIFACTORY_REGISTRY_URL,
-    ],
-    {
-      timeout: 30000,
-      preserveOutputOnError: true,
-    },
-  )
+export const GITHUB_RELEASES_API_URL =
+  process.env.NCODE_GITHUB_RELEASES_API_URL ??
+  'https://api.github.com/repos/Noumena-Network/code/releases'
 
-  const latencyMs = Date.now() - startTime
-
-  if (code !== 0) {
-    logEvent('ncode_version_check_failure', {
-      latency_ms: latencyMs,
-      source_npm: true,
-      exit_code: code,
-    })
-    const error = new Error(`npm view failed with code ${code}: ${stderr}`)
-    logError(error)
-    throw error
-  }
-
-  logEvent('ncode_version_check_success', {
-    latency_ms: latencyMs,
-    source_npm: true,
-  })
-  logForDebugging(
-    `npm view ${MACRO.NATIVE_PACKAGE_URL}@${tag} version: ${stdout}`,
-  )
-  const latestVersion = stdout.trim()
-  return latestVersion
+type GithubReleaseAsset = {
+  browser_download_url?: string
+  name?: string
 }
 
+type GithubRelease = {
+  assets?: GithubReleaseAsset[]
+  draft?: boolean
+  prerelease?: boolean
+  tag_name?: string
+}
+
+function normalizeVersionTag(version: string): string {
+  return version.startsWith('v') ? version : `v${version}`
+}
+
+function releaseVersionFromTag(tag: string): string {
+  return tag.startsWith('v') ? tag.slice(1) : tag
+}
+
+function getGithubReleaseApiHeaders(): Record<string, string> {
+  return {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  }
+}
+
+function findGithubAsset(
+  release: GithubRelease,
+  assetName: string,
+): GithubReleaseAsset {
+  const asset = release.assets?.find(candidate => candidate.name === assetName)
+  if (!asset?.browser_download_url) {
+    throw new Error(
+      `GitHub release ${release.tag_name ?? 'unknown'} is missing asset ${assetName}`,
+    )
+  }
+  return asset
+}
+
+async function getGithubReleaseByTag(version: string): Promise<GithubRelease> {
+  const tag = normalizeVersionTag(version)
+  const response = await axios.get<GithubRelease>(
+    `${GITHUB_RELEASES_API_URL}/tags/${encodeURIComponent(tag)}`,
+    {
+      timeout: 30000,
+      responseType: 'json',
+      headers: getGithubReleaseApiHeaders(),
+    },
+  )
+  return response.data
+}
+
+export async function getLatestVersionFromGithubReleases(
+  channel: ReleaseChannel = 'latest',
+): Promise<string> {
+  const startTime = Date.now()
+  try {
+    const response = await axios.get<GithubRelease[]>(GITHUB_RELEASES_API_URL, {
+      timeout: 30000,
+      responseType: 'json',
+      headers: getGithubReleaseApiHeaders(),
+      params: { per_page: 25 },
+    })
+    const release = response.data.find(candidate => {
+      if (candidate.draft) return false
+      if (channel === 'stable' && candidate.prerelease) return false
+      return Boolean(candidate.tag_name)
+    })
+    if (!release?.tag_name) {
+      throw new Error(`No ${channel} GitHub release is available`)
+    }
+    logEvent('ncode_version_check_success', {
+      latency_ms: Date.now() - startTime,
+      source_github_releases: true,
+    })
+    return releaseVersionFromTag(release.tag_name)
+  } catch (error) {
+    const latencyMs = Date.now() - startTime
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    let httpStatus: number | undefined
+    if (axios.isAxiosError(error) && error.response) {
+      httpStatus = error.response.status
+    }
+    logEvent('ncode_version_check_failure', {
+      latency_ms: latencyMs,
+      http_status: httpStatus,
+      is_timeout: errorMessage.includes('timeout'),
+      source_github_releases: true,
+    })
+    const fetchError = new Error(
+      `Failed to fetch ${channel} version from GitHub releases: ${errorMessage}`,
+    )
+    logError(fetchError)
+    throw fetchError
+  }
+}
 export async function getLatestVersionFromBinaryRepo(
   channel: ReleaseChannel = 'latest',
   baseUrl: string,
@@ -141,142 +193,12 @@ export async function getLatestVersion(
     )
   }
 
-  // Route to appropriate source
-  if (isInternalBuild()) {
-    // Use Artifactory for internal users
-    const npmTag = channel === 'stable' ? 'stable' : 'latest'
-    return getLatestVersionFromArtifactory(npmTag)
+  const binaryRepoUrl = getPublicBinaryUrl()
+  if (binaryRepoUrl) {
+    return getLatestVersionFromBinaryRepo(channel, binaryRepoUrl)
   }
 
-  const publicBinaryUrl = getPublicBinaryUrl()
-  if (!publicBinaryUrl) {
-    throw new Error(
-      'No public binary distribution URL is configured for this build. Set NCODE_NATIVE_PACKAGE_URL to check for updates.',
-    )
-  }
-
-  // Use public binary repo for external users
-  return getLatestVersionFromBinaryRepo(channel, publicBinaryUrl)
-}
-
-export async function downloadVersionFromArtifactory(
-  version: string,
-  stagingPath: string,
-) {
-  const fs = getFsImplementation()
-
-  // If we get here, we own the lock and can delete a partial download
-  await fs.rm(stagingPath, { recursive: true, force: true })
-
-  // Get the platform-specific package name
-  const platform = getPlatform()
-  const platformPackageName = `${MACRO.NATIVE_PACKAGE_URL}-${platform}`
-
-  // Fetch integrity hash for the platform-specific package
-  logForDebugging(
-    `Fetching integrity hash for ${platformPackageName}@${version}`,
-  )
-  const {
-    stdout: integrityOutput,
-    code,
-    stderr,
-  } = await execFileNoThrowWithCwd(
-    'npm',
-    [
-      'view',
-      `${platformPackageName}@${version}`,
-      'dist.integrity',
-      '--registry',
-      ARTIFACTORY_REGISTRY_URL,
-    ],
-    {
-      timeout: 30000,
-      preserveOutputOnError: true,
-    },
-  )
-
-  if (code !== 0) {
-    throw new Error(`npm view integrity failed with code ${code}: ${stderr}`)
-  }
-
-  const integrity = integrityOutput.trim()
-  if (!integrity) {
-    throw new Error(
-      `Failed to fetch integrity hash for ${platformPackageName}@${version}`,
-    )
-  }
-
-  logForDebugging(`Got integrity hash for ${platform}: ${integrity}`)
-
-  // Create isolated npm project in staging
-  await fs.mkdir(stagingPath)
-
-  const packageJson = {
-    name: 'ncode-native-installer',
-    version: '0.0.1',
-    dependencies: {
-      [MACRO.NATIVE_PACKAGE_URL!]: version,
-    },
-  }
-
-  // Create package-lock.json with integrity verification for platform-specific package
-  const packageLock = {
-    name: 'ncode-native-installer',
-    version: '0.0.1',
-    lockfileVersion: 3,
-    requires: true,
-    packages: {
-      '': {
-        name: 'ncode-native-installer',
-        version: '0.0.1',
-        dependencies: {
-          [MACRO.NATIVE_PACKAGE_URL!]: version,
-        },
-      },
-      [`node_modules/${MACRO.NATIVE_PACKAGE_URL}`]: {
-        version: version,
-        optionalDependencies: {
-          [platformPackageName]: version,
-        },
-      },
-      [`node_modules/${platformPackageName}`]: {
-        version: version,
-        integrity: integrity,
-      },
-    },
-  }
-
-  writeFileSync_DEPRECATED(
-    join(stagingPath, 'package.json'),
-    jsonStringify(packageJson, null, 2),
-    { encoding: 'utf8', flush: true },
-  )
-
-  writeFileSync_DEPRECATED(
-    join(stagingPath, 'package-lock.json'),
-    jsonStringify(packageLock, null, 2),
-    { encoding: 'utf8', flush: true },
-  )
-
-  // Install with npm - it will verify integrity from package-lock.json
-  // Use --prefer-online to force fresh metadata checks, helping with Artifactory replication delays
-  const result = await execFileNoThrowWithCwd(
-    'npm',
-    ['ci', '--prefer-online', '--registry', ARTIFACTORY_REGISTRY_URL],
-    {
-      timeout: 60000,
-      preserveOutputOnError: true,
-      cwd: stagingPath,
-    },
-  )
-
-  if (result.code !== 0) {
-    throw new Error(`npm ci failed with code ${result.code}: ${result.stderr}`)
-  }
-
-  logForDebugging(
-    `Successfully downloaded and verified ${MACRO.NATIVE_PACKAGE_URL}@${version}`,
-  )
+  return getLatestVersionFromGithubReleases(channel)
 }
 
 // Stall timeout: abort if no bytes received for this duration
@@ -388,6 +310,66 @@ async function downloadAndVerifyBinary(
 
   // Should not reach here, but just in case
   throw lastError ?? new Error('Download failed after all retries')
+}
+
+export async function downloadVersionFromGithubRelease(
+  version: string,
+  stagingPath: string,
+) {
+  const fs = getFsImplementation()
+
+  await fs.rm(stagingPath, { recursive: true, force: true })
+
+  const platform = getPlatform()
+  const binaryName = getBinaryName(platform)
+  const artifactBaseName = `ncode-${version}-${platform}`
+  const zipAssetName = `${artifactBaseName}.zip`
+  const checksumAssetName = `${zipAssetName}.sha256`
+  const startTime = Date.now()
+
+  logEvent('ncode_binary_download_attempt', { source_github_releases: true })
+
+  const release = await getGithubReleaseByTag(version)
+  const zipAsset = findGithubAsset(release, zipAssetName)
+  const checksumAsset = findGithubAsset(release, checksumAssetName)
+
+  const checksumResponse = await axios.get(checksumAsset.browser_download_url!, {
+    timeout: 30000,
+    responseType: 'text',
+  })
+  const expectedChecksum = String(checksumResponse.data).trim().split(/\s+/)[0]
+  if (!expectedChecksum) {
+    throw new Error(`GitHub release asset ${checksumAssetName} did not contain a checksum`)
+  }
+
+  const zipResponse = await axios.get(zipAsset.browser_download_url!, {
+    timeout: 5 * 60000,
+    responseType: 'arraybuffer',
+  })
+  const zipBuffer = Buffer.from(zipResponse.data)
+  const actualChecksum = createHash('sha256').update(zipBuffer).digest('hex')
+  if (actualChecksum !== expectedChecksum) {
+    throw new Error(
+      `Checksum mismatch for ${zipAssetName}: expected ${expectedChecksum}, got ${actualChecksum}`,
+    )
+  }
+
+  const entries = unzipSync(new Uint8Array(zipBuffer))
+  const binaryEntry =
+    entries[`${artifactBaseName}/${binaryName}`] ?? entries[binaryName]
+  if (!binaryEntry) {
+    throw new Error(`GitHub release asset ${zipAssetName} did not contain ${binaryName}`)
+  }
+
+  await fs.mkdir(stagingPath)
+  const binaryPath = join(stagingPath, binaryName)
+  await writeFile(binaryPath, Buffer.from(binaryEntry))
+  await chmod(binaryPath, 0o755)
+
+  logEvent('ncode_binary_download_success', {
+    latency_ms: Date.now() - startTime,
+    source_github_releases: true,
+  })
 }
 
 export async function downloadVersionFromBinaryRepo(
@@ -517,21 +499,13 @@ export async function downloadVersion(
     return 'binary'
   }
 
-  if (isInternalBuild()) {
-    // Use Artifactory for internal users
-    await downloadVersionFromArtifactory(version, stagingPath)
-    return 'npm'
+  const binaryRepoUrl = getPublicBinaryUrl()
+  if (binaryRepoUrl) {
+    await downloadVersionFromBinaryRepo(version, stagingPath, binaryRepoUrl)
+    return 'binary'
   }
 
-  const publicBinaryUrl = getPublicBinaryUrl()
-  if (!publicBinaryUrl) {
-    throw new Error(
-      'No public binary distribution URL is configured for this build. Set NCODE_NATIVE_PACKAGE_URL to update.',
-    )
-  }
-
-  // Use public binary repo for external users
-  await downloadVersionFromBinaryRepo(version, stagingPath, publicBinaryUrl)
+  await downloadVersionFromGithubRelease(version, stagingPath)
   return 'binary'
 }
 

@@ -28,8 +28,17 @@ import {
 import { jsonParse } from './slowOperations.js'
 import { isInternalBuild } from 'src/capabilities/static.js'
 
-const GCS_BUCKET_URL =
-  'https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases'
+const GITHUB_RELEASES_API_URL =
+  process.env.NCODE_GITHUB_RELEASES_API_URL ??
+  'https://api.github.com/repos/Noumena-Network/code/releases'
+
+function getPublicBinaryUrl(): string | undefined {
+  return MACRO.NATIVE_PACKAGE_URL || process.env.NCODE_NATIVE_PACKAGE_URL
+}
+
+function githubReleaseVersionFromTag(tag: string): string {
+  return tag.startsWith('v') ? tag.slice(1) : tag
+}
 
 class AutoUpdaterError extends ClaudeError {}
 
@@ -385,14 +394,42 @@ export async function getNpmDistTags(): Promise<NpmDistTags> {
 export async function getLatestVersionFromGcs(
   channel: ReleaseChannel,
 ): Promise<string | null> {
+  const publicBinaryUrl = getPublicBinaryUrl()
+  if (publicBinaryUrl) {
+    try {
+      const response = await axios.get(`${publicBinaryUrl}/${channel}`, {
+        timeout: 5000,
+        responseType: 'text',
+      })
+      return response.data.trim()
+    } catch (error) {
+      logForDebugging(`Failed to fetch ${channel} from binary repo: ${error}`)
+      return null
+    }
+  }
+
   try {
-    const response = await axios.get(`${GCS_BUCKET_URL}/${channel}`, {
+    const response = await axios.get(GITHUB_RELEASES_API_URL, {
       timeout: 5000,
-      responseType: 'text',
+      responseType: 'json',
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+      params: { per_page: 25 },
     })
-    return response.data.trim()
+    const release = (response.data as Array<{
+      draft?: boolean
+      prerelease?: boolean
+      tag_name?: string
+    }>).find(candidate => {
+      if (candidate.draft) return false
+      if (channel === 'stable' && candidate.prerelease) return false
+      return Boolean(candidate.tag_name)
+    })
+    return release?.tag_name ? githubReleaseVersionFromTag(release.tag_name) : null
   } catch (error) {
-    logForDebugging(`Failed to fetch ${channel} from GCS: ${error}`)
+    logForDebugging(`Failed to fetch ${channel} from GitHub releases: ${error}`)
     return null
   }
 }
