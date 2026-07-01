@@ -15,7 +15,12 @@ import {
   getNCodeManagedModelOptions,
   resolveNCodeManagedModel,
 } from './ncodeModels.js'
-import { getAPIProvider, getNoumenaBaseUrl } from './providers.js'
+import {
+  getAPIProvider,
+  getNoumenaBaseUrl,
+  getOpenAICompatDefaultModel,
+  isOpenAICompatByokActive,
+} from './providers.js'
 import { isModelAllowed } from './modelAllowlist.js'
 import {
   getCanonicalName,
@@ -50,6 +55,7 @@ function hasEnvValue(value: string | undefined): boolean {
 function isNCodeManagedFirstPartySurface(): boolean {
   return (
     getAPIProvider() === 'firstParty' &&
+    !isOpenAICompatByokActive() &&
     (Boolean(getNoumenaBaseUrl()) ||
       hasEnvValue(process.env.NOUMENA_MODEL) ||
       hasEnvValue(process.env.NOUMENA_SMALL_FAST_MODEL) ||
@@ -58,6 +64,23 @@ function isNCodeManagedFirstPartySurface(): boolean {
       hasEnvValue(process.env.NOUMENA_DEFAULT_OPUS_MODEL) ||
       hasEnvValue(process.env.NOUMENA_DEFAULT_HAIKU_MODEL))
   )
+}
+
+function getOpenAICompatByokModelOptions(): ModelOption[] {
+  const model = getOpenAICompatDefaultModel()
+  return dedupeModelOptions([
+    {
+      value: null,
+      label: 'Default (OpenAI compatible)',
+      description: `Use the OpenAI-compatible model (currently ${model})`,
+      descriptionForModel: `OpenAI-compatible default model (currently ${model})`,
+    },
+    {
+      value: model,
+      label: model,
+      description: 'OpenAI-compatible BYOK model',
+    },
+  ])
 }
 
 export function modelOptionsReferToSameModel(
@@ -325,6 +348,10 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
       getSonnet46_1MOption(),
       getHaiku45Option(),
     ])
+  }
+
+  if (isOpenAICompatByokActive()) {
+    return getOpenAICompatByokModelOptions()
   }
 
   if (isNCodeManagedFirstPartySurface()) {

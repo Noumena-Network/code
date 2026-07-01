@@ -150,9 +150,13 @@ export function persistManagedRemoteBootstrapFailure(
 export async function resolveManagedRemoteCapability(
   options: ResolveManagedRemoteCapabilityOptions = {},
 ): Promise<ManagedRemoteCapability> {
-  const session = await getAuthRuntime().resolveSession({
+  const activeSession = await getAuthRuntime().resolveSession({
     allowRefresh: true,
   })
+  const session =
+    activeSession.principalSource === 'managed_oauth'
+      ? activeSession
+      : (getAuthRuntime().getCurrentManagedSession() ?? activeSession)
   const accessTokenOverride = normalizeAccessTokenOverride(
     options.accessTokenOverride,
   )
@@ -191,7 +195,11 @@ export async function resolveManagedRemoteCapability(
 export async function resolveManagedRemoteBootstrapCapability(
   options: ResolveManagedRemoteCapabilityOptions = {},
 ): Promise<ManagedRemoteCapability> {
-  const initialSession = getAuthRuntime().getCurrentSession()
+  const activeSession = getAuthRuntime().getCurrentSession()
+  const initialSession =
+    activeSession.principalSource === 'managed_oauth'
+      ? activeSession
+      : (getAuthRuntime().getCurrentManagedSession() ?? activeSession)
   const accessTokenOverride = normalizeAccessTokenOverride(
     options.accessTokenOverride,
   )
@@ -235,6 +243,7 @@ export async function resolveManagedRemoteRuntimeAuth(
   const runtimeAuth: ManagedRemoteRuntimeAuth = {
     getAccessToken: () =>
       accessTokenOverride ??
+      getAuthRuntime().getCurrentManagedSession()?.accessToken ??
       getAuthRuntime().getCurrentSession().accessToken ??
       undefined,
     onAuth401: staleAccessToken =>
@@ -288,16 +297,21 @@ export async function refreshManagedRemoteRuntimeAccessToken(
 export async function resolveManagedRemoteRuntimeLease(
   options: ResolveManagedRemoteCapabilityOptions = {},
 ): Promise<ManagedRemoteRuntimeLease> {
+  const activeProviderSession = getAuthRuntime().getCurrentSession()
   const capability = await resolveManagedRemoteBootstrapCapability(options)
+  const leaseSession =
+    activeProviderSession.providerPlan.mode === 'byok_static_env'
+      ? activeProviderSession
+      : capability.session
 
   return {
     accessToken: capability.accessToken,
     orgUUID: capability.orgUUID,
-    session: capability.session,
+    session: leaseSession,
     lease: buildRemoteSessionLease({
       organizationUuid: capability.orgUUID,
-      providerMode: getRemoteRuntimeProviderMode(capability.session),
-      session: capability.session,
+      providerMode: getRemoteRuntimeProviderMode(leaseSession),
+      session: leaseSession,
     }),
   }
 }

@@ -17,7 +17,11 @@ import { formatModelPricing, getOpus46CostTier } from '../modelCost.js'
 import { getCurrentSubscriptionSessionState } from '../subscriptionSession.js'
 import { getSettings_DEPRECATED } from '../settings/settings.js'
 import type { PermissionMode } from '../permissions/PermissionMode.js'
-import { getAPIProvider } from './providers.js'
+import {
+  getAPIProvider,
+  getOpenAICompatDefaultModel,
+  isOpenAICompatByokActive,
+} from './providers.js'
 import {
   getAntModelOverrideConfig,
   resolveAntModel,
@@ -39,7 +43,16 @@ export type ModelName = string
 export type ModelSetting = ModelName | ModelAlias | null
 
 function getConfiguredMainModelEnv(): string | undefined {
-  return process.env.NOUMENA_MODEL || process.env.ANTHROPIC_MODEL
+  if (isOpenAICompatByokActive()) {
+    return (
+      process.env.OPENAI_MODEL ||
+      process.env.NOUMENA_MODEL ||
+      process.env.ANTHROPIC_MODEL
+    )
+  }
+  return (
+    process.env.NOUMENA_MODEL || process.env.ANTHROPIC_MODEL
+  )
 }
 
 function getConfiguredSmallFastModelEnv(): string | undefined {
@@ -146,6 +159,9 @@ export function getBestModel(): ModelName {
 
 // @[MODEL LAUNCH]: Update the default Opus model (3P providers may lag so keep defaults unchanged).
 export function getDefaultOpusModel(): ModelName {
+  if (isOpenAICompatByokActive()) {
+    return getOpenAICompatDefaultModel()
+  }
   const configuredModel = getConfiguredDefaultOpusModelEnv()
   if (configuredModel) {
     return configuredModel
@@ -161,6 +177,9 @@ export function getDefaultOpusModel(): ModelName {
 
 // @[MODEL LAUNCH]: Update the default Flash model (3P providers may lag so keep defaults unchanged).
 export function getDefaultFlashModel(): ModelName {
+  if (isOpenAICompatByokActive()) {
+    return getOpenAICompatDefaultModel()
+  }
   const configuredModel = getConfiguredDefaultFlashModelEnv()
   if (configuredModel) {
     return configuredModel
@@ -177,6 +196,9 @@ export function getDefaultFlashModel(): ModelName {
 
 // @[MODEL LAUNCH]: Update the default Haiku model (3P providers may lag so keep defaults unchanged).
 export function getDefaultHaikuModel(): ModelName {
+  if (isOpenAICompatByokActive()) {
+    return getOpenAICompatDefaultModel()
+  }
   const configuredModel = getConfiguredDefaultHaikuModelEnv()
   if (configuredModel) {
     return configuredModel

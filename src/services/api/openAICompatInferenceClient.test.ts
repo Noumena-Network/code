@@ -170,6 +170,19 @@ describe('buildOpenAICompatChatRequest', () => {
     })
   })
 
+  it('does not rewrite model IDs when NCode managed routing is disabled', () => {
+    const request = buildOpenAICompatChatRequest(
+      {
+        model: 'glm-5.2',
+        max_tokens: 32,
+        messages: [{ role: 'user', content: 'hello' }],
+      } as never,
+      { useNCodeManagedModelRouting: false },
+    )
+
+    expect(request.model).toBe('glm-5.2')
+  })
+
   it('maps NCode effort levels onto OpenAI-compatible reasoning effort per request', () => {
     for (const effort of ['medium', 'high', 'max'] as const) {
       const request = buildOpenAICompatChatRequest({
@@ -1828,6 +1841,63 @@ describe('OpenAICompatInferenceClient', () => {
       'http://example.test/v1/chat/completions',
       'http://example.test/v1/models',
     ])
+  })
+
+  it('supports external OpenAI-compatible BYOK routing without Noumena rewrites', async () => {
+    const fetchCalls: Array<{
+      url: string
+      headers: Headers
+      body: Record<string, unknown> | null
+    }> = []
+    const client = new OpenAICompatInferenceClient({
+      baseURL: 'https://openrouter.ai/api/v1',
+      headers: {
+        Authorization: 'Bearer openai-key',
+      },
+      useNCodeManagedModelRouting: false,
+      wsV2Transport: null,
+      fetch: async (input, init) => {
+        fetchCalls.push({
+          url: String(input),
+          headers: new Headers(init?.headers),
+          body:
+            typeof init?.body === 'string'
+              ? (JSON.parse(init.body) as Record<string, unknown>)
+              : null,
+        })
+        return new Response(
+          JSON.stringify({
+            id: 'chatcmpl-openai-byok',
+            model: 'glm-5.2',
+            choices: [
+              {
+                message: {
+                  role: 'assistant',
+                  content: 'ok',
+                },
+                finish_reason: 'stop',
+              },
+            ],
+          }),
+        )
+      },
+    })
+
+    await client.createMessage({
+      model: 'glm-5.2',
+      max_tokens: 8,
+      messages: [{ role: 'user', content: 'hello' }],
+    } as never)
+
+    expect(fetchCalls).toHaveLength(1)
+    expect(fetchCalls[0]!.url).toBe(
+      'https://openrouter.ai/api/v1/chat/completions',
+    )
+    expect(fetchCalls[0]!.headers.get('authorization')).toBe(
+      'Bearer openai-key',
+    )
+    expect(fetchCalls[0]!.headers.get('x-noumena-model')).toBeNull()
+    expect(fetchCalls[0]!.body?.model).toBe('glm-5.2')
   })
 
   it('routes chat completions by the actual request model, not the stale client model', async () => {

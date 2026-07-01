@@ -23,6 +23,9 @@ const envKeys = [
   'CLAUDE_CODE_USE_FOUNDRY',
   'ANTHROPIC_API_KEY',
   'NOUMENA_API_KEY',
+  'OPENAI_API_KEY',
+  'OPENAI_BASE_URL',
+  'OPENAI_MODEL',
   'ANTHROPIC_AUTH_TOKEN',
   'CLAUDE_CODE_OAUTH_TOKEN',
   'NCODE_CONFIG_DIR',
@@ -59,6 +62,9 @@ function setStableTestRuntime() {
   delete process.env.CLAUDE_CODE_USE_VERTEX
   delete process.env.CLAUDE_CODE_USE_FOUNDRY
   delete process.env.NOUMENA_API_KEY
+  delete process.env.OPENAI_API_KEY
+  delete process.env.OPENAI_BASE_URL
+  delete process.env.OPENAI_MODEL
   delete process.env.CI
 
   process.env.ANTHROPIC_API_KEY = 'anthropic-direct-test-key'
@@ -310,4 +316,66 @@ describe('getInferenceClient', () => {
     expect(request.headers.get('authorization')).toBeNull()
     expect(request.headers.get('x-api-key')).toBe('byok-static-env-key')
   })
+
+
+  it('routes OPENAI_API_KEY through the OpenAI-compatible client without Noumena auth headers', async () => {
+    delete process.env.NOUMENA_BASE_URL
+    delete process.env.ANTHROPIC_BASE_URL
+    delete process.env.NOUMENA_API_KEY
+    delete process.env.ANTHROPIC_API_KEY
+    delete process.env.ANTHROPIC_AUTH_TOKEN
+    delete process.env.CLAUDE_CODE_OAUTH_TOKEN
+    process.env.OPENAI_API_KEY = 'openai-static-env-key'
+
+    const recorder = createModelsFetchRecorder()
+
+    const client = await getInferenceClient({
+      maxRetries: 2,
+      source: 'openai-byok',
+      fetchOverride: recorder.fetchOverride,
+    })
+
+    expect(client).toBeInstanceOf(OpenAICompatInferenceClient)
+    expect(await collectModels(client as OpenAICompatInferenceClient)).toEqual([
+      { id: 'test-model' },
+    ])
+
+    const request = recorder.getRequest()
+    expect(request.url).toBe('https://api.openai.com/v1/models')
+    expect(request.headers.get('authorization')).toBe(
+      'Bearer openai-static-env-key',
+    )
+    expect(request.headers.get('x-api-key')).toBeNull()
+    expect(request.headers.get('anthropic-beta')).toBeNull()
+    expect(request.headers.get('x-client-request-id')).toBeNull()
+  })
+
+  it('preserves path-prefixed OPENAI_BASE_URL values for OpenAI-compatible BYOK', async () => {
+    delete process.env.NOUMENA_BASE_URL
+    delete process.env.ANTHROPIC_BASE_URL
+    delete process.env.NOUMENA_API_KEY
+    delete process.env.ANTHROPIC_API_KEY
+    delete process.env.ANTHROPIC_AUTH_TOKEN
+    delete process.env.CLAUDE_CODE_OAUTH_TOKEN
+    process.env.OPENAI_API_KEY = 'openai-static-env-key'
+    process.env.OPENAI_BASE_URL = 'https://openrouter.ai/api/v1'
+
+    const recorder = createModelsFetchRecorder()
+
+    const client = await getInferenceClient({
+      maxRetries: 2,
+      source: 'openrouter-byok',
+      fetchOverride: recorder.fetchOverride,
+    })
+
+    expect(client).toBeInstanceOf(OpenAICompatInferenceClient)
+    expect(await collectModels(client as OpenAICompatInferenceClient)).toEqual([
+      { id: 'test-model' },
+    ])
+
+    expect(recorder.getRequest().url).toBe(
+      'https://openrouter.ai/api/v1/models',
+    )
+  })
+
 })

@@ -12,9 +12,11 @@ import {
   clearOAuthTokenCache,
 } from '../../utils/auth.js'
 import {
-  getDirectApiKeyEnvValue,
   getDirectApiKeyProviderMode,
   getDirectApiKeyEnvVarName,
+  getDirectApiKeyEnvValue,
+  isDirectApiKeyEnvVarName,
+  isOpenAIDirectApiKeySource,
 } from '../../utils/authEnv.js'
 import { getIsNonInteractiveSession } from '../../bootstrap/state.js'
 import { getGlobalConfig } from '../../utils/config.js'
@@ -132,7 +134,7 @@ function mapPrincipalSource(params: {
   if (
     process.env.NCODE_REMOTE_RUNTIME_TOKEN_TRANSPORT ===
       'static_api_key_env' &&
-    (apiKeySource === 'NOUMENA_API_KEY' || apiKeySource === 'ANTHROPIC_API_KEY')
+    isDirectApiKeyEnvVarName(apiKeySource)
   ) {
     return 'direct_api_key_env'
   }
@@ -140,6 +142,12 @@ function mapPrincipalSource(params: {
   if (
     process.env.NCODE_REMOTE_RUNTIME_PROVIDER_MODE === 'byok' &&
     apiKeySource === 'ANTHROPIC_API_KEY'
+  ) {
+    return 'direct_api_key_env'
+  }
+  if (
+    process.env.NCODE_REMOTE_RUNTIME_PROVIDER_MODE === 'byok_openai' &&
+    apiKeySource === 'OPENAI_API_KEY'
   ) {
     return 'direct_api_key_env'
   }
@@ -160,6 +168,9 @@ function mapPrincipalSource(params: {
   ) {
     return 'service_oauth_fd'
   }
+  if (isDirectApiKeyEnvVarName(apiKeySource)) {
+    return 'direct_api_key_env'
+  }
   if (hasStoredManagedPrincipal || authTokenSource === 'noumena.com') {
     return 'managed_oauth'
   }
@@ -168,9 +179,6 @@ function mapPrincipalSource(params: {
   }
   if (apiKeySource === 'apiKeyHelper') {
     return 'api_key_helper'
-  }
-  if (apiKeySource === 'NOUMENA_API_KEY' || apiKeySource === 'ANTHROPIC_API_KEY') {
-    return 'direct_api_key_env'
   }
 
   return 'none'
@@ -474,7 +482,9 @@ function resolveSessionSnapshot(): ResolvedAuthSession {
   } else if (principalSource === 'direct_api_key_env') {
     principalKind = 'api_key_user'
     sessionState = hasUsableApiKey ? 'usable' : 'invalid'
-    headersKind = 'api_key'
+    headersKind = isOpenAIDirectApiKeySource(rawApiKeySource)
+      ? 'none'
+      : 'api_key'
   } else if (principalSource !== 'none') {
     principalKind = 'service_principal'
     sessionState = hasUsableToken ? 'usable' : 'invalid'

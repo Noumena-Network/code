@@ -236,7 +236,8 @@ function isCurrentExternalEnvApiKeySession(): boolean {
   const session = getCurrentErrorSession()
   return (
     session?.rawApiKeySource === 'NOUMENA_API_KEY' ||
-    session?.rawApiKeySource === 'ANTHROPIC_API_KEY'
+    session?.rawApiKeySource === 'ANTHROPIC_API_KEY' ||
+    session?.rawApiKeySource === 'OPENAI_API_KEY'
   )
 }
 
@@ -864,10 +865,15 @@ export function getAssistantMessageFromError(
     }
   }
 
-  if (
-    error instanceof Error &&
-    error.message.toLowerCase().includes('x-api-key')
-  ) {
+  const lowerErrorMessage =
+    error instanceof Error ? error.message.toLowerCase() : ''
+  const isApiKeyAuthError =
+    lowerErrorMessage.includes('x-api-key') ||
+    (isCurrentExternalApiKeySession() &&
+      (lowerErrorMessage.includes('authorization') ||
+        lowerErrorMessage.includes('bearer')))
+
+  if (error instanceof Error && isApiKeyAuthError) {
     // In CCR mode, auth is via JWTs - this is likely a transient network issue
     if (isCCRMode()) {
       return createAssistantAPIErrorMessage({
