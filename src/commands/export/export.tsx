@@ -1,6 +1,5 @@
 import { join } from 'path';
 import React from 'react';
-import { ExportDialog } from '../../components/ExportDialog.js';
 import type { ToolUseContext } from '../../Tool.js';
 import type { LocalJSXCommandOnDone } from '../../types/command.js';
 import type { Message } from '../../types/message.js';
@@ -84,6 +83,7 @@ export async function call(onDone: LocalJSXCommandOnDone, context: ToolUseContex
   }
 
   // Return the dialog component when no args provided
+  const { ExportDialog } = await import('../../components/ExportDialog.js');
   return <ExportDialog content={content} defaultFilename={defaultFilename} onDone={result => {
     onDone(result.message);
   }} />;

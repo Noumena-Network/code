@@ -2,7 +2,10 @@ import { describe, expect, it, mock } from 'bun:test'
 
 process.env.NOUMENA_API_KEY ??= 'test-key-for-hermetic-contracts'
 
+const actualModel = await import(import.meta.resolve('../utils/model/model.ts'))
+
 mock.module(import.meta.resolve('../utils/model/model.js'), () => ({
+  ...actualModel,
   getMainLoopModel: () => 'claude-sonnet-4-6',
   getSmallFastModel: () => 'claude-haiku-4-5',
 }))

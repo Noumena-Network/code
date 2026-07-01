@@ -23,6 +23,7 @@ import {
 import {
   analyzeFillableSpaceGap,
   type Cell,
+  cellAt,
   CellWidth,
   diffEach,
   createScreen,

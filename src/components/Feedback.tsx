@@ -52,7 +52,7 @@ type Props = {
   };
 };
 type Step = 'userInput' | 'consent' | 'submitting' | 'done';
-type FeedbackData = {
+export type FeedbackData = {
   // latestAssistantMessageId is the message ID from the latest main model call
   latestAssistantMessageId: string | null;
   message_count: number;
@@ -66,6 +66,12 @@ type FeedbackData = {
     [agentId: string]: Message[];
   };
   rawTranscriptJsonl?: string;
+};
+export type FeedbackSubmitResult = {
+  success: boolean;
+  feedbackId?: string;
+  isZdrOrg?: boolean;
+  draftOnly?: boolean;
 };
 
 // Utility function to redact sensitive information from strings
@@ -163,6 +169,7 @@ export function Feedback({
   const [cursorOffset, setCursorOffset] = useState(0);
   const [description, setDescription] = useState(initialDescription ?? '');
   const [feedbackId, setFeedbackId] = useState<string | null>(null);
+  const [draftOnly, setDraftOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [envInfo, setEnvInfo] = useState<{
     isGit: boolean;
@@ -191,6 +198,7 @@ export function Feedback({
     setStep('submitting');
     setError(null);
     setFeedbackId(null);
+    setDraftOnly(false);
 
     // Get sanitized errors for the report
     const sanitizedErrors = getSanitizedErrorLogs();
@@ -226,6 +234,7 @@ export function Feedback({
     const [result, t] = await Promise.all([submitFeedback(reportData, abortSignal), generateTitle(description, abortSignal)]);
     setTitle(t);
     if (result.success) {
+      setDraftOnly(Boolean(result.draftOnly));
       if (result.feedbackId) {
         setFeedbackId(result.feedbackId);
         logEvent('ncode_bug_report_submitted', {
@@ -248,7 +257,7 @@ export function Feedback({
       // Stay on userInput step so user can retry with their content preserved
       setStep('userInput');
     }
-  }, [description, envInfo.isGit, messages]);
+  }, [backgroundTasks, description, envInfo.isGit, messages]);
 
   // Handle cancel - this will be called by Dialog's automatic Esc handling
   const handleCancel = useCallback(() => {
@@ -256,6 +265,10 @@ export function Feedback({
     if (step === 'done') {
       if (error) {
         onDone('Error submitting feedback / bug report', {
+          display: 'system'
+        });
+      } else if (draftOnly) {
+        onDone('Feedback / bug report ready to draft', {
           display: 'system'
         });
       } else {
@@ -268,7 +281,7 @@ export function Feedback({
     onDone('Feedback / bug report cancelled', {
       display: 'system'
     });
-  }, [step, error, onDone]);
+  }, [step, error, draftOnly, onDone]);
 
   // During text input, use Settings context where only Escape (not 'n') triggers confirm:no.
   // This allows typing 'n' in the text field while still supporting Escape to cancel.
@@ -286,6 +299,10 @@ export function Feedback({
       }
       if (error) {
         onDone('Error submitting feedback / bug report', {
+          display: 'system'
+        });
+      } else if (draftOnly) {
+        onDone('Feedback / bug report ready to draft', {
           display: 'system'
         });
       } else {
@@ -378,7 +395,7 @@ export function Feedback({
         </Box>}
 
       {step === 'done' && <Box flexDirection="column">
-          {error ? <Text color="error">{error}</Text> : <Text color="success">Thank you for your report!</Text>}
+          {error ? <Text color="error">{error}</Text> : draftOnly ? <Text color="warning">Feedback service is unavailable. You can open a prefilled GitHub issue draft.</Text> : <Text color="success">Thank you for your report!</Text>}
           {feedbackId && <Text dimColor>Feedback ID: {feedbackId}</Text>}
           <Box marginTop={1}>
             <Text>Press </Text>
@@ -516,11 +533,7 @@ function sanitizeAndLogError(err: unknown): void {
     logError(new Error(errorString));
   }
 }
-async function submitFeedback(data: FeedbackData, signal?: AbortSignal): Promise<{
-  success: boolean;
-  feedbackId?: string;
-  isZdrOrg?: boolean;
-}> {
+export async function submitFeedback(data: FeedbackData, signal?: AbortSignal): Promise<FeedbackSubmitResult> {
   if (isEssentialTrafficOnly()) {
     return {
       success: false
@@ -568,6 +581,13 @@ async function submitFeedback(data: FeedbackData, signal?: AbortSignal): Promise
     if (axios.isCancel(err)) {
       return {
         success: false
+      };
+    }
+    if (axios.isAxiosError(err) && err.response?.status === 404) {
+      sanitizeAndLogError(new Error('Feedback service endpoint is unavailable; falling back to GitHub issue draft'));
+      return {
+        success: true,
+        draftOnly: true
       };
     }
     if (axios.isAxiosError(err) && err.response?.status === 403) {

@@ -98,7 +98,7 @@ export default class Ink {
   private readonly stylePool: StylePool;
   private charPool: CharPool;
   private hyperlinkPool: HyperlinkPool;
-  private exitPromise?: Promise<void>;
+  private exitPromise: Promise<void>;
   private restoreConsole?: () => void;
   private restoreStderr?: () => void;
   private readonly unsubscribeTTYHandlers?: () => void;
@@ -202,6 +202,10 @@ export default class Ink {
   } | null = null;
   constructor(private readonly options: Options) {
     autoBind(this);
+    this.exitPromise = new Promise((resolve, reject) => {
+      this.resolveExitPromise = resolve;
+      this.rejectExitPromise = reject;
+    });
     if (this.options.patchConsole) {
       this.restoreConsole = this.patchConsole();
       this.restoreStderr = this.patchStderr();
@@ -1685,10 +1689,6 @@ export default class Ink {
     }
   }
   async waitUntilExit(): Promise<void> {
-    this.exitPromise ||= new Promise((resolve, reject) => {
-      this.resolveExitPromise = resolve;
-      this.rejectExitPromise = reject;
-    });
     return this.exitPromise;
   }
   resetLineCount(): void {
