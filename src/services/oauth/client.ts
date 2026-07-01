@@ -156,7 +156,7 @@ function getOauthCallbackRelayEndpoint(path: string): string {
 
 function isTransientError(error: unknown): boolean {
   if (!axios.isAxiosError(error)) {
-    return true
+    return false
   }
   const code = error.code
   if (

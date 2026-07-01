@@ -12,6 +12,7 @@ import {
   exchangeCodeForTokens,
   getOrganizationUUID,
   refreshOAuthToken,
+  registerOauthCallbackRelay,
 } from './client.js'
 
 const envKeys = [
@@ -161,6 +162,130 @@ describe('exchangeCodeForTokens', () => {
     expect((postCalls[0]?.[1] as URLSearchParams).toString()).toContain(
       'redirect_uri=https%3A%2F%2Fcode.noumena.test%2Foauth%2Fcode%2Fcallback%3Fapp%3Dnoumena-code%26relay_id%3Drelay-123',
     )
+  })
+})
+
+
+describe('registerOauthCallbackRelay', () => {
+  const originalSetTimeout = globalThis.setTimeout
+  const originalMathRandom = Math.random
+
+  beforeEach(() => {
+    process.env.NOUMENA_ISSUER_BASE_URL = 'https://auth.noumena.test'
+    Math.random = () => 0
+    globalThis.setTimeout = ((handler: TimerHandler, _timeout?: number, ...args: unknown[]) => {
+      if (typeof handler === 'function') {
+        handler(...args)
+      }
+      return 0 as unknown as ReturnType<typeof setTimeout>
+    }) as typeof setTimeout
+  })
+
+  afterEach(() => {
+    Math.random = originalMathRandom
+    globalThis.setTimeout = originalSetTimeout
+  })
+
+  function axiosError(params: {
+    code?: string
+    message?: string
+    status?: number
+  }): unknown {
+    return Object.assign(
+      new Error(params.message ?? params.code ?? `status ${params.status}`),
+      {
+        isAxiosError: true,
+        code: params.code,
+        response:
+          params.status === undefined
+            ? undefined
+            : {
+                status: params.status,
+              },
+      },
+    )
+  }
+
+  it('retries transient timeout errors and preserves the registration payload', async () => {
+    const postCalls: Array<unknown[]> = []
+    axios.post = (async (...args: unknown[]) => {
+      postCalls.push(args)
+      if (postCalls.length === 1) {
+        throw axiosError({ code: 'ECONNABORTED', message: 'timeout' })
+      }
+      return { data: {} }
+    }) as typeof axios.post
+
+    await registerOauthCallbackRelay({
+      relayId: 'relay-timeout',
+      state: 'state-timeout',
+      timeoutMs: 5000,
+    })
+
+    expect(postCalls).toHaveLength(2)
+    expect(postCalls[0]?.[0]).toBe(
+      'https://auth.noumena.test/oauth/callback-relay/register',
+    )
+    expect(postCalls[0]?.[1]).toEqual({
+      relay_id: 'relay-timeout',
+      state: 'state-timeout',
+    })
+    expect(postCalls[0]?.[2]).toMatchObject({ timeout: 5000 })
+  })
+
+  it('retries transient 5xx and 429 registration failures', async () => {
+    const statuses = [500, 429]
+    for (const status of statuses) {
+      const postCalls: Array<unknown[]> = []
+      axios.post = (async (...args: unknown[]) => {
+        postCalls.push(args)
+        if (postCalls.length === 1) {
+          throw axiosError({ status })
+        }
+        return { data: {} }
+      }) as typeof axios.post
+
+      await registerOauthCallbackRelay({
+        relayId: `relay-${status}`,
+        state: `state-${status}`,
+      })
+
+      expect(postCalls).toHaveLength(2)
+    }
+  })
+
+  it('fails fast for non-transient 4xx registration failures', async () => {
+    const postCalls: Array<unknown[]> = []
+    axios.post = (async (...args: unknown[]) => {
+      postCalls.push(args)
+      throw axiosError({ status: 400, message: 'bad request' })
+    }) as typeof axios.post
+
+    await expect(
+      registerOauthCallbackRelay({
+        relayId: 'relay-400',
+        state: 'state-400',
+      }),
+    ).rejects.toThrow('OAuth callback relay registration failed: bad request')
+    expect(postCalls).toHaveLength(1)
+  })
+
+  it('fails fast for non-Axios registration errors', async () => {
+    const postCalls: Array<unknown[]> = []
+    axios.post = (async (...args: unknown[]) => {
+      postCalls.push(args)
+      throw new Error('programming error')
+    }) as typeof axios.post
+
+    await expect(
+      registerOauthCallbackRelay({
+        relayId: 'relay-non-axios',
+        state: 'state-non-axios',
+      }),
+    ).rejects.toThrow(
+      'OAuth callback relay registration failed: programming error',
+    )
+    expect(postCalls).toHaveLength(1)
   })
 })
 
