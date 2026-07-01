@@ -263,6 +263,10 @@ export async function getAnthropicClient({
   // Determine authentication method based on available tokens
   const legacyAnthropicSdkBaseUrl = getLegacyAnthropicSdkBaseUrl()
   const currentSession = getAuthRuntime().getCurrentSession()
+  const currentSessionApiKey =
+    currentSession.rawApiKeySource === 'OPENAI_API_KEY'
+      ? null
+      : currentSession.apiKey
   const shouldUseCanonicalAuthToken =
     currentSession.sessionState === 'usable' &&
     Boolean(currentSession.accessToken) &&
@@ -272,7 +276,7 @@ export async function getAnthropicClient({
   const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
     apiKey: shouldUseCanonicalAuthToken
       ? null
-      : apiKey || currentSession.apiKey,
+      : apiKey || currentSessionApiKey,
     authToken: shouldUseCanonicalAuthToken
       ? currentSession.accessToken ?? undefined
       : undefined,

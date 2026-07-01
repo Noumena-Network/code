@@ -106,6 +106,7 @@ export function getAuthHeaders(): AuthHeaders {
     (session.principalSource === 'direct_api_key_env' ||
       session.principalSource === 'console_api_key' ||
       session.principalSource === 'api_key_helper') &&
+    session.rawApiKeySource !== 'OPENAI_API_KEY' &&
     session.apiKey
   ) {
     return {

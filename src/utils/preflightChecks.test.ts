@@ -21,9 +21,12 @@ describe('getPreflightEndpoints', () => {
     process.env.NOUMENA_PLATFORM_BASE_URL = 'https://platform-api.noumena.test/'
     process.env.NOUMENA_ISSUER_BASE_URL = 'https://issuer.noumena.test/'
 
+    // #11 changed preflight from reachability (/healthz + JWKS) to auth-flow
+    // validation (/v1/me + oauth/token), so we catch auth/config failures at
+    // startup rather than only server-down failures.
     expect(getPreflightEndpoints()).toEqual([
-      'https://platform-api.noumena.test/healthz',
-      'https://issuer.noumena.test/.well-known/jwks.json',
+      'https://platform-api.noumena.test/v1/me',
+      'https://issuer.noumena.test/oauth/token',
     ])
   })
 })

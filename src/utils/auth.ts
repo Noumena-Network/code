@@ -95,8 +95,8 @@ const DEFAULT_API_KEY_HELPER_TTL = 5 * 60 * 1000
  * CCR and Claude Desktop spawn the CLI with OAuth and should never fall back
  * to the user's settings-backed API-key config (typically
  * ~/.ncode/settings.json; legacy ~/.claude/settings.json) or related auth env
- * sources (apiKeyHelper, env.NOUMENA_API_KEY / env.ANTHROPIC_API_KEY,
- * env.ANTHROPIC_AUTH_TOKEN). Those settings exist for the user's terminal
+ * sources (apiKeyHelper, env.NOUMENA_API_KEY / env.ANTHROPIC_API_KEY /
+ * env.OPENAI_API_KEY, env.ANTHROPIC_AUTH_TOKEN). Those settings exist for the user's terminal
  * CLI, not managed sessions. Without this guard, a user who runs `claude` in
  * their terminal with an API key sees every CCD session also use that key —
  * and fail if it's stale/wrong-org.
@@ -122,8 +122,8 @@ export function isAnthropicAuthEnabled(): boolean {
   // oauth-2025 beta header to match what the proxy will inject). The remote's
   // settings-backed config (typically ~/.ncode/settings.json; legacy
   // ~/.claude/settings.json) MUST NOT
-  // allow apiKeyHelper, settings.env.NOUMENA_API_KEY, or
-  // settings.env.ANTHROPIC_API_KEY to
+  // allow apiKeyHelper, settings.env.NOUMENA_API_KEY,
+  // settings.env.ANTHROPIC_API_KEY, or settings.env.OPENAI_API_KEY to
   // flip this — they'd cause a header mismatch with the proxy and a bogus
   // "invalid x-api-key" from the API. See src/ssh/sshAuthProxy.ts.
   if (process.env.ANTHROPIC_UNIX_SOCKET) {
@@ -160,6 +160,7 @@ export function isAnthropicAuthEnabled(): boolean {
   const hasExternalApiKey =
     apiKeySource === 'NOUMENA_API_KEY' ||
     apiKeySource === 'ANTHROPIC_API_KEY' ||
+    apiKeySource === 'OPENAI_API_KEY' ||
     apiKeySource === 'apiKeyHelper'
 
   // Disable Anthropic auth if:
@@ -271,6 +272,7 @@ export function getAuthTokenSource() {
 export type ApiKeySource =
   | 'NOUMENA_API_KEY'
   | 'ANTHROPIC_API_KEY'
+  | 'OPENAI_API_KEY'
   | 'apiKeyHelper'
   | '/login managed key'
   | 'none'
@@ -293,9 +295,10 @@ export function getAnthropicApiKeyWithSource(
   key: null | string
   source: ApiKeySource
 } {
-  // --bare: hermetic auth. Only ANTHROPIC_API_KEY env or apiKeyHelper from
-  // the --settings flag. Never touches keychain, config file, or approval
-  // lists. 3P (Bedrock/Vertex/Foundry) uses provider creds, not this path.
+  // --bare: hermetic static-key auth. Only direct env keys or apiKeyHelper from
+  // the --settings flag are read. Never touches keychain, config file, or
+  // approval lists. 3P (Bedrock/Vertex/Foundry) uses provider creds, not this
+  // path.
   if (isBareMode()) {
     const directApiKey = getDirectApiKeyEnvValue()
     if (directApiKey) {
@@ -348,7 +351,7 @@ export function getAnthropicApiKeyWithSource(
       !getOAuthTokenFileDescriptorEnvVarName()
     ) {
       throw new Error(
-        'NOUMENA_API_KEY / ANTHROPIC_API_KEY or NCODE_OAUTH_TOKEN / NCODE_OAUTH_TOKEN_FILE_DESCRIPTOR env var is required',
+        'NOUMENA_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY or NCODE_OAUTH_TOKEN / NCODE_OAUTH_TOKEN_FILE_DESCRIPTOR env var is required',
       )
     }
 
@@ -365,7 +368,8 @@ export function getAnthropicApiKeyWithSource(
       source: 'none',
     }
   }
-  // Check for ANTHROPIC_API_KEY before checking the apiKeyHelper or /login-managed key
+  // Check for direct API-key env vars before checking apiKeyHelper or
+  // /login-managed key.
   if (
     apiKeyEnv &&
     getGlobalConfig().customApiKeyResponses?.approved?.includes(

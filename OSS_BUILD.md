@@ -94,12 +94,15 @@ The canonical login path for Noumena-managed accounts is OAuth:
 
 You can also run the app and type `/login` in the REPL. Complete the browser OAuth flow to connect the local CLI to your Noumena-managed account.
 
-Noumena API keys and BYOK remain supported for automation and direct-provider workflows:
+Noumena API keys and BYOK remain supported for automation and direct-provider workflows. Noumena OAuth login is optional and independent from inference provider selection:
 
 ```bash
 NOUMENA_API_KEY=... .tmp/packages/ncode-0.1.0-linux-x64/ncode
 ANTHROPIC_API_KEY=... .tmp/packages/ncode-0.1.0-linux-x64/ncode
+OPENAI_API_KEY=... OPENAI_BASE_URL=https://openrouter.ai/api/v1 OPENAI_MODEL=inclusionai/ling-2.6-flash .tmp/packages/ncode-0.1.0-linux-x64/ncode
 ```
+
+Direct key precedence is `NOUMENA_API_KEY`, then `ANTHROPIC_API_KEY`, then `OPENAI_API_KEY`. Project settings cannot silently set OpenAI BYOK routing variables.
 
 ## Run locally
 

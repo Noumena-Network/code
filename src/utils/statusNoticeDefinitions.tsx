@@ -54,7 +54,11 @@ function formatAuthTokenSourceLabel(source: string): string {
 }
 
 function getApiKeySourceResolution(source: string, directApiKeyEnvName: string): string {
-  if (source === 'NOUMENA_API_KEY' || source === 'ANTHROPIC_API_KEY') {
+  if (
+    source === 'NOUMENA_API_KEY' ||
+    source === 'ANTHROPIC_API_KEY' ||
+    source === 'OPENAI_API_KEY'
+  ) {
     return `Unset the ${directApiKeyEnvName} environment variable.`;
   }
 
@@ -118,6 +122,7 @@ export function getManagedKeyConflictSource(
 
   return session.rawApiKeySource === 'NOUMENA_API_KEY' ||
     session.rawApiKeySource === 'ANTHROPIC_API_KEY' ||
+    session.rawApiKeySource === 'OPENAI_API_KEY' ||
     session.rawApiKeySource === 'apiKeyHelper'
     ? session.rawApiKeySource
     : null;

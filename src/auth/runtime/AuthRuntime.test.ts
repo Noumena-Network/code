@@ -21,6 +21,9 @@ const envKeys = [
   'CLAUDE_CONFIG_DIR',
   'NOUMENA_API_KEY',
   'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  'OPENAI_BASE_URL',
+  'OPENAI_MODEL',
   'ANTHROPIC_AUTH_TOKEN',
   'NCODE_OAUTH_TOKEN',
   'CLAUDE_CODE_OAUTH_TOKEN',
@@ -75,6 +78,9 @@ function setStableTestRuntime(): void {
   process.env.USER_TYPE = 'test'
   delete process.env.NOUMENA_API_KEY
   delete process.env.ANTHROPIC_API_KEY
+  delete process.env.OPENAI_API_KEY
+  delete process.env.OPENAI_BASE_URL
+  delete process.env.OPENAI_MODEL
   delete process.env.ANTHROPIC_AUTH_TOKEN
   delete process.env.NCODE_OAUTH_TOKEN
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN
@@ -176,7 +182,7 @@ describe('AuthRuntime', () => {
     )
   })
 
-  it('fails closed for expired managed auth even if an API key fallback exists', async () => {
+  it('uses direct API-key inference auth even when stored managed auth is expired', async () => {
     process.env.NOUMENA_API_KEY = 'fallback-api-key'
     saveOAuthTokensIfNeeded({
       accessToken: 'expired-access-token',
@@ -188,9 +194,22 @@ describe('AuthRuntime', () => {
     })
     clearOAuthTokenCache()
 
-    await expect(getAuthRuntime().buildFirstPartyHeaders()).rejects.toThrow(
-      'Managed OAuth authentication expired and could not be refreshed.',
-    )
+    const session = getAuthRuntime().getCurrentSession()
+    const managedSession = getAuthRuntime().getCurrentManagedSession()
+    const headers = await getAuthRuntime().buildFirstPartyHeaders()
+
+    expect(session).toMatchObject({
+      principalSource: 'direct_api_key_env',
+      sessionState: 'usable',
+      rawApiKeySource: 'NOUMENA_API_KEY',
+    })
+    expect(managedSession).toMatchObject({
+      principalSource: 'managed_oauth',
+      sessionState: 'expired',
+    })
+    expect(headers).toEqual({
+      'x-api-key': 'fallback-api-key',
+    })
   })
 
   it('uses NOUMENA_API_KEY when the static API-key transport is explicit', async () => {
@@ -395,6 +414,32 @@ describe('AuthRuntime', () => {
     })
   })
 
+  it('keeps OPENAI_API_KEY as OpenAI-compatible BYOK without first-party headers', async () => {
+    delete process.env.NOUMENA_API_KEY
+    delete process.env.ANTHROPIC_API_KEY
+    process.env.OPENAI_API_KEY = 'openai-direct-key'
+
+    const session = getAuthRuntime().getCurrentSession()
+    const headers = await getAuthRuntime().buildFirstPartyHeaders()
+
+    expect(session).toMatchObject({
+      principalKind: 'api_key_user',
+      principalSource: 'direct_api_key_env',
+      sessionState: 'usable',
+      headersKind: 'none',
+      providerAuthKind: 'byok_static_env',
+      providerPlan: {
+        mode: 'byok_static_env',
+        source: 'direct_api_key_env',
+        staticKeyEnvVarName: 'OPENAI_API_KEY',
+      },
+      rawApiKeySource: 'OPENAI_API_KEY',
+      hasUsableApiKey: true,
+      apiKey: 'openai-direct-key',
+    })
+    expect(headers).toEqual({})
+  })
+
   it('warms apiKeyHelper-backed sessions before status and header resolution', async () => {
     const helperPath = await createApiKeyHelperScript('helper-api-key')
     setFlagSettingsInline({ apiKeyHelper: helperPath })
@@ -466,6 +511,37 @@ describe('AuthRuntime', () => {
     expect(getAuthRuntime().getCurrentManagedRefreshToken()).toBe(
       'managed-refresh-token',
     )
+  })
+
+  it('surfaces the stored managed session separately from OpenAI BYOK inference auth', () => {
+    process.env.OPENAI_API_KEY = 'openai-direct-key'
+    getSecureStorage().update({
+      claudeAiOauth: {
+        accessToken: 'managed-access-token',
+        refreshToken: 'managed-refresh-token',
+        expiresAt: Date.now() + 60 * 60 * 1000,
+        scopes: ['user:profile'],
+        subscriptionType: 'pro',
+        rateLimitTier: 'tier-1',
+      },
+    })
+    clearOAuthTokenCache()
+
+    const session = getAuthRuntime().getCurrentSession()
+    const managedSession = getAuthRuntime().getCurrentManagedSession()
+
+    expect(session).toMatchObject({
+      principalSource: 'direct_api_key_env',
+      headersKind: 'none',
+      providerAuthKind: 'byok_static_env',
+      rawApiKeySource: 'OPENAI_API_KEY',
+    })
+    expect(managedSession).toMatchObject({
+      principalSource: 'managed_oauth',
+      sessionState: 'usable',
+      accessToken: 'managed-access-token',
+      scopes: ['user:profile'],
+    })
   })
 
   it('prefers static BYOK env-key auth over injected remote OAuth when the remote lease is BYOK', async () => {
