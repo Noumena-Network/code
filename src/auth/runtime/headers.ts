@@ -33,7 +33,9 @@ export function buildFirstPartyHeadersFromSession({
   }
 
   if (includeApiKeyHeader) {
-    const resolvedApiKey = apiKey ?? session.apiKey
+    const resolvedApiKey =
+      apiKey ??
+      (session.rawApiKeySource === 'OPENAI_API_KEY' ? undefined : session.apiKey)
     if (resolvedApiKey) {
       headers['x-api-key'] = resolvedApiKey
     }

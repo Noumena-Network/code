@@ -2,6 +2,8 @@ import type Anthropic from '@anthropic-ai/sdk'
 import {
   getAPIProvider,
   getNoumenaBaseUrl,
+  getOpenAICompatBaseUrl,
+  isOpenAICompatByokActive,
   isFirstPartyNoumenaBaseUrl,
 } from '../../utils/model/providers.js'
 import {
@@ -11,6 +13,8 @@ import {
 } from './client.js'
 import { OpenAICompatInferenceClient } from './openAICompatInferenceClient.js'
 import { getNCodeManagedModelBaseUrl } from '../../utils/model/ncodeModels.js'
+import { getDirectApiKeyEnvValue } from '../../utils/authEnv.js'
+import { getUserAgent } from '../../utils/http.js'
 
 export type InferenceCreateMessageArgs = Parameters<
   Anthropic['beta']['messages']['create']
@@ -72,9 +76,30 @@ function getLegacyOpenAICompatBaseUrl(): string | undefined {
   return isFirstPartyNoumenaBaseUrl() ? undefined : legacyBaseUrl
 }
 
+function getOpenAICompatByokHeaders(apiKey: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    'User-Agent': getUserAgent(),
+  }
+}
+
 export async function getInferenceClient(
   args: Parameters<typeof getAnthropicClient>[0],
 ): Promise<InferenceClient> {
+  if (isOpenAICompatByokActive()) {
+    const apiKey = getDirectApiKeyEnvValue()
+    const baseURL = getOpenAICompatBaseUrl()
+    if (apiKey && baseURL) {
+      return new OpenAICompatInferenceClient({
+        baseURL,
+        headers: getOpenAICompatByokHeaders(apiKey),
+        useNCodeManagedModelRouting: false,
+        wsV2Transport: null,
+        ...(args.fetchOverride ? { fetch: args.fetchOverride } : {}),
+      })
+    }
+  }
+
   if (getAPIProvider() === 'firstParty') {
     const managedModelBaseURL = getNCodeManagedModelBaseUrl(args.model)
     const configuredCompatBaseURL =

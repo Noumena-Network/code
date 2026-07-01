@@ -24,7 +24,7 @@ const EXPECTED_IMAGE_PROCESSOR_FALLBACK_WARNING =
 // These are smoke-test budgets, not product latency SLOs. They catch broken
 // startup paths while allowing GitHub-hosted macOS x64 cold starts enough room
 // to avoid millisecond-level flakes after safe whitespace-only packaging.
-const VERSION_CHECK_BUDGET_MS = 3_000;
+const VERSION_CHECK_BUDGET_MS = 5_000;
 const HELP_CHECK_BUDGET_MS = 4_000;
 
 function parseArgs(argv) {
@@ -34,6 +34,7 @@ function parseArgs(argv) {
     buildMode: 'noumena',
     runBinaryChecks: true,
     runNativeProbe: true,
+    runExposureAudit: true,
     keepOutput: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -52,6 +53,8 @@ function parseArgs(argv) {
       args.runNativeProbe = false;
     } else if (arg === '--no-native-probe') {
       args.runNativeProbe = false;
+    } else if (arg === '--skip-exposure-audit') {
+      args.runExposureAudit = false;
     } else if (arg === '--keep-output') {
       args.keepOutput = true;
     } else {
@@ -111,13 +114,15 @@ function expectLinesInOrder(lines, expectedLines, label) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const sourceAuditFindings = runExposureAudit({
-    allowlist: getDefaultAllowlist(),
-  });
-  if (sourceAuditFindings.length > 0) {
-    throw new Error(
-      `Repo source exposure audit failed before build:\n${formatFindings(sourceAuditFindings)}`,
-    );
+  if (args.runExposureAudit) {
+    const sourceAuditFindings = runExposureAudit({
+      allowlist: getDefaultAllowlist(),
+    });
+    if (sourceAuditFindings.length > 0) {
+      throw new Error(
+        `Repo source exposure audit failed before build:\n${formatFindings(sourceAuditFindings)}`,
+      );
+    }
   }
 
   const tempRoot = args.outDir ??

@@ -3,12 +3,18 @@ import {
   getAnthropicBaseUrl,
   getFirstPartyBaseUrlOverride,
   getNoumenaBaseUrl,
+  getOpenAICompatBaseUrl,
+  getOpenAICompatDefaultModel,
+  isOpenAICompatByokActive,
   isFirstPartyNoumenaBaseUrl,
 } from './providers.js'
 
 function resetEnv() {
   delete process.env.NOUMENA_BASE_URL
   delete process.env.ANTHROPIC_BASE_URL
+  delete process.env.OPENAI_API_KEY
+  delete process.env.OPENAI_BASE_URL
+  delete process.env.OPENAI_MODEL
   delete process.env.USER_TYPE
 }
 
@@ -63,4 +69,26 @@ describe('providers', () => {
     process.env.ANTHROPIC_BASE_URL = 'https://api-staging.anthropic.com'
     expect(isFirstPartyNoumenaBaseUrl()).toBe(true)
   })
+
+
+  it('activates OpenAI-compatible BYOK only for OPENAI_API_KEY', () => {
+    expect(isOpenAICompatByokActive()).toBe(false)
+    expect(getOpenAICompatBaseUrl()).toBeUndefined()
+
+    process.env.OPENAI_API_KEY = 'openai-key'
+
+    expect(isOpenAICompatByokActive()).toBe(true)
+    expect(getOpenAICompatBaseUrl()).toBe('https://api.openai.com')
+    expect(getOpenAICompatDefaultModel()).toBe('gpt-5.1-codex')
+  })
+
+  it('uses explicit OpenAI-compatible base URL and model overrides', () => {
+    process.env.OPENAI_API_KEY = 'openai-key'
+    process.env.OPENAI_BASE_URL = ' https://openrouter.ai/api/v1 '
+    process.env.OPENAI_MODEL = ' openrouter/custom-model '
+
+    expect(getOpenAICompatBaseUrl()).toBe('https://openrouter.ai/api/v1')
+    expect(getOpenAICompatDefaultModel()).toBe('openrouter/custom-model')
+  })
+
 })

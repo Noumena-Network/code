@@ -12,6 +12,7 @@ See [RELEASING.md](./RELEASING.md) for the release process and version-bump poli
 ### Added
 
 - GitHub Actions now build, attest, and publish Linux and macOS release artifacts from version tags on `main`.
+- Release workflow now builds default and dev flavor artifacts for each supported platform.
 - Load `AGENTS.md` and `.agents/` instructions into context via the `agentsmd` loader ([#15](https://github.com/Noumena-Network/code/pull/15))
 - GLM 5.2 managed first-party model profile and tier routing ([#17](https://github.com/Noumena-Network/code/pull/17))
 - GLM 5.2 promoted to the first-party default model ([#21](https://github.com/Noumena-Network/code/pull/21))

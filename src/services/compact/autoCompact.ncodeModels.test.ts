@@ -7,6 +7,8 @@ import {
 import {
   DEEPSEEK_V4_FLASH_MAX_PROMPT_TOKENS,
   DEEPSEEK_V4_FLASH_MODEL,
+  GLM_5_2_1M_MAX_PROMPT_TOKENS,
+  GLM_5_2_1M_MODEL,
   GLM_5_2_MAX_PROMPT_TOKENS,
   GLM_5_2_MODEL,
   KIMI_2_7_CODER_MODEL,
@@ -40,9 +42,33 @@ describe('auto compact managed model prompt budgets', () => {
     ['glm alias', 'glm-5.2'],
     ['glm compact alias', 'glm52'],
     ['glm model', GLM_5_2_MODEL],
-  ])('%s uses the GLM 5.2 1M autocompact budget', (_label, model) => {
+  ])('%s uses the GLM 5.2 200K base-lane autocompact budget', (_label, model) => {
     expect(getEffectiveContextWindowSize(model)).toBe(
       GLM_5_2_MAX_PROMPT_TOKENS,
+    )
+    expect(getAutoCompactThreshold(model)).toBe(187_000)
+
+    expect(calculateTokenWarningState(180_000, model)).toMatchObject({
+      isAboveAutoCompactThreshold: false,
+      isAtBlockingLimit: false,
+    })
+    expect(calculateTokenWarningState(195_000, model)).toMatchObject({
+      isAboveAutoCompactThreshold: true,
+      isAtBlockingLimit: false,
+    })
+    expect(calculateTokenWarningState(198_000, model)).toMatchObject({
+      isAboveAutoCompactThreshold: true,
+      isAtBlockingLimit: true,
+    })
+  })
+
+  test.each([
+    ['glm 1m alias', 'glm-5.2[1m]'],
+    ['glm 1m compact alias', 'glm52[1m]'],
+    ['glm 1m model', GLM_5_2_1M_MODEL],
+  ])('%s uses the GLM 5.2 1M autocompact budget', (_label, model) => {
+    expect(getEffectiveContextWindowSize(model)).toBe(
+      GLM_5_2_1M_MAX_PROMPT_TOKENS,
     )
     expect(getAutoCompactThreshold(model)).toBe(987_000)
 

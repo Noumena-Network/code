@@ -3,6 +3,7 @@ import { getAuthRuntime } from '../../auth/runtime/AuthRuntime.js'
 import type { ResolvedAuthSession } from '../../auth/runtime/types.js'
 import {
   getDefaultOptionForUser,
+  getModelOptions,
   getMaxOpus46_1MOption,
 } from './modelOptions.js'
 import { parseUserSpecifiedModel } from './model.js'
@@ -18,6 +19,8 @@ const originalBuildMode = process.env.NCODE_BUILD_MODE
 const originalUseBedrock = process.env.CLAUDE_CODE_USE_BEDROCK
 const originalUseVertex = process.env.CLAUDE_CODE_USE_VERTEX
 const originalUseFoundry = process.env.CLAUDE_CODE_USE_FOUNDRY
+const originalOpenAIApiKey = process.env.OPENAI_API_KEY
+const originalOpenAIModel = process.env.OPENAI_MODEL
 
 function restoreEnv(): void {
   if (originalEntryPoint === undefined) {
@@ -49,6 +52,16 @@ function restoreEnv(): void {
     delete process.env.CLAUDE_CODE_USE_FOUNDRY
   } else {
     process.env.CLAUDE_CODE_USE_FOUNDRY = originalUseFoundry
+  }
+  if (originalOpenAIApiKey === undefined) {
+    delete process.env.OPENAI_API_KEY
+  } else {
+    process.env.OPENAI_API_KEY = originalOpenAIApiKey
+  }
+  if (originalOpenAIModel === undefined) {
+    delete process.env.OPENAI_MODEL
+  } else {
+    process.env.OPENAI_MODEL = originalOpenAIModel
   }
 }
 
@@ -220,6 +233,43 @@ describe('modelOptions auth gating', () => {
       expect(getDefaultOptionForUser().description).toContain(
         'Use the default model',
       )
+    })
+  })
+
+  it('shows only OpenAI-compatible default options for OpenAI BYOK sessions', () => {
+    process.env.CLAUDE_CODE_ENTRYPOINT = 'cli'
+    process.env.USER_TYPE = 'test'
+    delete process.env.NCODE_BUILD_MODE
+    delete process.env.CLAUDE_CODE_USE_BEDROCK
+    delete process.env.CLAUDE_CODE_USE_VERTEX
+    delete process.env.CLAUDE_CODE_USE_FOUNDRY
+    process.env.OPENAI_API_KEY = 'openai-key'
+    process.env.OPENAI_MODEL = 'custom-openai-model'
+
+    const session = makeSession({
+      principalKind: 'api_key_user',
+      principalSource: 'direct_api_key_env',
+      sessionState: 'usable',
+      headersKind: 'none',
+      providerAuthKind: 'byok_static_env',
+      providerPlan: {
+        mode: 'byok_static_env',
+        source: 'direct_api_key_env',
+        staticKeyEnvVarName: 'OPENAI_API_KEY',
+      },
+      hasUsableApiKey: true,
+      apiKey: 'openai-key',
+      rawApiKeySource: 'OPENAI_API_KEY',
+    })
+
+    withMockCurrentSession(session, () => {
+      expect(getDefaultOptionForUser().description).toContain(
+        'custom-openai-model',
+      )
+      expect(getModelOptions().map(option => option.value)).toEqual([
+        null,
+        'custom-openai-model',
+      ])
     })
   })
 

@@ -32,6 +32,7 @@ type OpenAICompatInferenceClientOptions = {
   headers?: HeadersInit
   backendCapabilities?: Partial<OpenAICompatBackendCapabilities>
   wsV2Transport?: OpenAICompatWsV2Transport | null
+  useNCodeManagedModelRouting?: boolean
 }
 
 type OpenAICompatRequestPolicy = {
@@ -228,8 +229,15 @@ type OpenAIModelsResponse = {
 const OPENAI_COMPAT_REASONING_TRANSPORT_ENV =
   'NOUMENA_OPENAI_COMPAT_REASONING_TRANSPORT'
 
-function normalizeOpenAICompatModelForAPI(model: string): string {
-  return (resolveNCodeManagedModel(model)?.model ?? model).replace(/\[(1|2)m\]/gi, '')
+function normalizeOpenAICompatModelForAPI(
+  model: string,
+  options?: { useNCodeManagedModelRouting?: boolean },
+): string {
+  const normalized =
+    options?.useNCodeManagedModelRouting === false
+      ? model
+      : (resolveNCodeManagedModel(model)?.model ?? model)
+  return normalized.replace(/\[(1|2)m\]/gi, '')
 }
 
 function getNoumenaModelRoutingHeader(model: string): string | undefined {
@@ -805,6 +813,7 @@ export function buildOpenAICompatChatRequest(
   params: InferenceCreateMessageArgs[0],
   options?: {
     policy?: OpenAICompatRequestPolicy
+    useNCodeManagedModelRouting?: boolean
   },
 ): OpenAIChatCompletionRequest {
   const customParams: Record<string, unknown> = {}
@@ -839,7 +848,9 @@ export function buildOpenAICompatChatRequest(
   const convertedMessages = convertMessages(params.system, params.messages)
 
   const request: OpenAIChatCompletionRequest = {
-    model: normalizeOpenAICompatModelForAPI(params.model),
+    model: normalizeOpenAICompatModelForAPI(params.model, {
+      useNCodeManagedModelRouting: options?.useNCodeManagedModelRouting,
+    }),
     messages: convertedMessages,
     max_completion_tokens: params.max_tokens,
     ...(params.max_tokens !== undefined ? { max_tokens: params.max_tokens } : {}),
@@ -1576,15 +1587,29 @@ export class OpenAICompatInferenceClient implements InferenceClient {
   private buildURLForModel(path: string, model: string): string {
     return this.buildURLWithBase(
       path,
-      getNCodeManagedModelBaseUrl(model) ?? this.options.baseURL,
+      this.shouldUseNCodeManagedModelRouting()
+        ? (getNCodeManagedModelBaseUrl(model) ?? this.options.baseURL)
+        : this.options.baseURL,
     )
   }
 
   private buildURLWithBase(path: string, baseURL: string): string {
-    return new URL(
-      path,
-      baseURL.endsWith('/') ? baseURL : `${baseURL}/`,
-    ).toString()
+    const base = new URL(baseURL)
+    const basePath = base.pathname.replace(/\/+$/, '')
+    const requestPath = path.replace(/^\/+/, '')
+    const pathToAppend =
+      basePath.endsWith('/v1') && requestPath.startsWith('v1/')
+        ? requestPath.slice('v1/'.length)
+        : requestPath
+    base.pathname = [basePath, pathToAppend]
+      .filter(Boolean)
+      .join('/')
+      .replace(/\/{2,}/g, '/')
+    return base.toString()
+  }
+
+  private shouldUseNCodeManagedModelRouting(): boolean {
+    return this.options.useNCodeManagedModelRouting ?? true
   }
 
   private async postJSON(
@@ -1610,7 +1635,7 @@ export class OpenAICompatInferenceClient implements InferenceClient {
         ? body.model
         : undefined
     const routingHeaderModel = init?.model ?? bodyModel
-    const routingModel = routingHeaderModel
+    const routingModel = this.shouldUseNCodeManagedModelRouting() && routingHeaderModel
       ? getNoumenaModelRoutingHeader(routingHeaderModel)
       : undefined
     if (routingModel) {
@@ -1645,7 +1670,9 @@ export class OpenAICompatInferenceClient implements InferenceClient {
     for (const [key, value] of new Headers(init?.headers).entries()) {
       headers.set(key, value)
     }
-    const routingModel = model ? getNoumenaModelRoutingHeader(model) : undefined
+    const routingModel = this.shouldUseNCodeManagedModelRouting() && model
+      ? getNoumenaModelRoutingHeader(model)
+      : undefined
     if (routingModel) {
       headers.set('x-noumena-model', routingModel)
     }
@@ -1697,6 +1724,7 @@ export class OpenAICompatInferenceClient implements InferenceClient {
     )
     const request = buildOpenAICompatChatRequest(params, {
       policy: requestPolicy,
+      useNCodeManagedModelRouting: this.shouldUseNCodeManagedModelRouting(),
     })
     const apiModel = request.model
     const wsV2Transport = params.stream ? this.getWsV2Transport() : null

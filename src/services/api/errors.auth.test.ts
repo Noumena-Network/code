@@ -24,6 +24,7 @@ const envKeys = [
   'CLAUDE_CODE_ENTRYPOINT',
   'NOUMENA_API_KEY',
   'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
   'ANTHROPIC_AUTH_TOKEN',
   'CLAUDE_CODE_OAUTH_TOKEN',
   'CLAUDE_CODE_SESSION_ACCESS_TOKEN',
@@ -63,6 +64,7 @@ function setStableTestRuntime() {
   delete process.env.CI
   delete process.env.NOUMENA_API_KEY
   delete process.env.ANTHROPIC_API_KEY
+  delete process.env.OPENAI_API_KEY
   delete process.env.ANTHROPIC_AUTH_TOKEN
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN
   delete process.env.CLAUDE_CODE_SESSION_ACCESS_TOKEN
@@ -135,14 +137,15 @@ function makeManagedErrorSession(): ResolvedAuthSession {
 
 function makeDirectEnvApiKeySession(params: {
   apiKey: string
-  envVarName: 'NOUMENA_API_KEY' | 'ANTHROPIC_API_KEY'
+  envVarName: 'NOUMENA_API_KEY' | 'ANTHROPIC_API_KEY' | 'OPENAI_API_KEY'
   providerMode: 'noumena_managed' | 'byok_static_env'
+  headersKind?: 'api_key' | 'none'
 }): ResolvedAuthSession {
   return {
     principalKind: 'api_key_user',
     principalSource: 'direct_api_key_env',
     sessionState: 'usable',
-    headersKind: 'api_key',
+    headersKind: params.headersKind ?? 'api_key',
     providerAuthKind:
       params.providerMode === 'noumena_managed'
         ? 'noumena_first_party'
@@ -266,6 +269,31 @@ describe('errors canonical auth classification', () => {
         getAssistantMessageFromError(
           new Error('x-api-key rejected'),
           'claude-3-7-sonnet-20250219',
+        ),
+    )
+
+    expect(message.message.content).toEqual([
+      expect.objectContaining({
+        text: INVALID_API_KEY_ERROR_MESSAGE_EXTERNAL,
+        type: 'text',
+      }),
+    ])
+  })
+
+  it('classifies OpenAI-compatible env API key failures as external invalid-key errors', () => {
+    process.env.OPENAI_API_KEY = 'openai-static-env-key'
+
+    const message = withMockCurrentSession(
+      makeDirectEnvApiKeySession({
+        apiKey: 'openai-static-env-key',
+        envVarName: 'OPENAI_API_KEY',
+        providerMode: 'byok_static_env',
+        headersKind: 'none',
+      }),
+      () =>
+        getAssistantMessageFromError(
+          new Error('Authorization bearer rejected'),
+          'gpt-5.1-codex',
         ),
     )
 

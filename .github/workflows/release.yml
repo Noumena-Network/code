@@ -113,7 +113,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   build:
-    name: Build / ${{ matrix.name }}
+    name: Build / ${{ matrix.flavor }} / ${{ matrix.name }}
     needs: preflight
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 35
@@ -129,12 +129,45 @@ jobs:
           - name: linux-x64
             runner: ubuntu-24.04
             target: bun-linux-x64
+            flavor: external
+            build_mode: external
+            asset_suffix: ''
+            smoke_extra: ''
           - name: darwin-arm64
             runner: macos-14
             target: bun-darwin-arm64
+            flavor: external
+            build_mode: external
+            asset_suffix: ''
+            smoke_extra: ''
           - name: darwin-x64
             runner: macos-15-intel
             target: bun-darwin-x64
+            flavor: external
+            build_mode: external
+            asset_suffix: ''
+            smoke_extra: ''
+          - name: linux-x64
+            runner: ubuntu-24.04
+            target: bun-linux-x64
+            flavor: dev
+            build_mode: noumena
+            asset_suffix: '-dev'
+            smoke_extra: '--skip-exposure-audit'
+          - name: darwin-arm64
+            runner: macos-14
+            target: bun-darwin-arm64
+            flavor: dev
+            build_mode: noumena
+            asset_suffix: '-dev'
+            smoke_extra: '--skip-exposure-audit'
+          - name: darwin-x64
+            runner: macos-15-intel
+            target: bun-darwin-x64
+            flavor: dev
+            build_mode: noumena
+            asset_suffix: '-dev'
+            smoke_extra: '--skip-exposure-audit'
 
     steps:
       - name: Checkout
@@ -163,7 +196,7 @@ jobs:
             ~/.cargo/registry
             native/markdown-renderer-napi/target
             native/openai-compat-ws-v2-napi/target
-          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('native/**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ matrix.flavor }}-${{ hashFiles('native/**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-cargo-
 
@@ -181,20 +214,27 @@ jobs:
           set -euo pipefail
           OUT_DIR="$RUNNER_TEMP/ncode-release"
           bun build/packageSmoke.mjs \
-            --build-mode external \
+            --build-mode "${{ matrix.build_mode }}" \
             --target "${{ matrix.target }}" \
             --out-dir "$OUT_DIR" \
-            --keep-output
+            --keep-output ${{ matrix.smoke_extra }}
 
           version="${{ needs.preflight.outputs.version }}"
           slug="${{ matrix.target }}"
           slug="${slug#bun-}"
-          base="ncode-${version}-${slug}"
+          source_base="ncode-${version}-${slug}"
+          base="ncode-${version}${{ matrix.asset_suffix }}-${slug}"
           zip_path="$OUT_DIR/${base}.zip"
-          manifest_path="$OUT_DIR/${base}/manifest.json"
+          manifest_path="$OUT_DIR/${source_base}/manifest.json"
 
-          test -f "$zip_path"
+          test -f "$OUT_DIR/${source_base}.zip"
           test -f "$manifest_path"
+          if [[ "$source_base" != "$base" ]]; then
+            mv "$OUT_DIR/${source_base}.zip" "$zip_path"
+          else
+            zip_path="$OUT_DIR/${source_base}.zip"
+          fi
+          test -f "$zip_path"
 
           shasum -a 256 "$zip_path" > "$OUT_DIR/${base}.zip.sha256"
           cp "$manifest_path" "$OUT_DIR/${base}.manifest.json"
@@ -210,7 +250,7 @@ jobs:
       - name: Upload release assets
         uses: actions/upload-artifact@v4
         with:
-          name: release-assets-${{ matrix.name }}
+          name: release-assets-${{ matrix.flavor }}-${{ matrix.name }}
           path: release-assets/*
           if-no-files-found: error
           retention-days: 14

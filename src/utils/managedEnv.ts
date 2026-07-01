@@ -9,6 +9,7 @@ import {
 import { clearMTLSCache } from './mtls.js'
 import { clearProxyCache, configureGlobalAgents } from './proxy.js'
 import { isSettingSourceEnabled } from './settings/constants.js'
+import type { SettingSource } from './settings/constants.js'
 import {
   getSettings_DEPRECATED,
   getSettingsForSource,
@@ -29,8 +30,11 @@ function withoutSSHTunnelVars(
     ANTHROPIC_BASE_URL: _2,
     NOUMENA_API_KEY: _3,
     ANTHROPIC_API_KEY: _4,
-    ANTHROPIC_AUTH_TOKEN: _5,
-    CLAUDE_CODE_OAUTH_TOKEN: _6,
+    OPENAI_API_KEY: _5,
+    OPENAI_BASE_URL: _6,
+    OPENAI_MODEL: _7,
+    ANTHROPIC_AUTH_TOKEN: _8,
+    CLAUDE_CODE_OAUTH_TOKEN: _9,
     ...rest
   } = env
   return rest
@@ -80,14 +84,39 @@ function withoutCcdSpawnEnvKeys(
   return out
 }
 
+const PROJECT_SETTINGS_OPENAI_BYOK_ENV_VARS = new Set([
+  'OPENAI_API_KEY',
+  'OPENAI_BASE_URL',
+  'OPENAI_MODEL',
+])
+
+function withoutProjectSettingsOpenAIByokVars(
+  env: Record<string, string> | undefined,
+  source?: SettingSource,
+): Record<string, string> {
+  if (!env || source !== 'projectSettings') return env || {}
+  const out: Record<string, string> = {}
+  for (const [key, value] of Object.entries(env)) {
+    if (!PROJECT_SETTINGS_OPENAI_BYOK_ENV_VARS.has(key.toUpperCase())) {
+      out[key] = value
+    }
+  }
+  return out
+}
+
 /**
  * Compose the strip filters applied to every settings-sourced env object.
  */
 function filterSettingsEnv(
   env: Record<string, string> | undefined,
+  source?: SettingSource,
 ): Record<string, string> {
   return withoutCcdSpawnEnvKeys(
-    withoutHostManagedProviderVars(withoutSSHTunnelVars(env)),
+    withoutHostManagedProviderVars(
+      withoutSSHTunnelVars(
+        withoutProjectSettingsOpenAIByokVars(env, source),
+      ),
+    ),
   )
 }
 
@@ -108,6 +137,14 @@ const TRUSTED_SETTING_SOURCES = [
   'flagSettings',
   'policySettings',
 ] as const
+
+const SETTINGS_ENV_APPLICATION_ORDER: readonly SettingSource[] = [
+  'userSettings',
+  'projectSettings',
+  'localSettings',
+  'flagSettings',
+  'policySettings',
+]
 
 /**
  * Apply environment variables from trusted sources to process.env.
@@ -145,7 +182,7 @@ export function applySafeConfigEnvironmentVariables(): void {
     if (!isSettingSourceEnabled(source)) continue
     Object.assign(
       process.env,
-      filterSettingsEnv(getSettingsForSource(source)?.env),
+      filterSettingsEnv(getSettingsForSource(source)?.env, source),
     )
   }
 
@@ -159,7 +196,10 @@ export function applySafeConfigEnvironmentVariables(): void {
 
   Object.assign(
     process.env,
-    filterSettingsEnv(getSettingsForSource('policySettings')?.env),
+    filterSettingsEnv(
+      getSettingsForSource('policySettings')?.env,
+      'policySettings',
+    ),
   )
 
   // Apply only safe env vars from the fully-merged settings (which includes
@@ -188,7 +228,15 @@ export function applySafeConfigEnvironmentVariables(): void {
 export function applyConfigEnvironmentVariables(): void {
   Object.assign(process.env, filterSettingsEnv(getGlobalConfig().env))
 
-  Object.assign(process.env, filterSettingsEnv(getSettings_DEPRECATED()?.env))
+  for (const source of SETTINGS_ENV_APPLICATION_ORDER) {
+    if (source !== 'flagSettings' && source !== 'policySettings') {
+      if (!isSettingSourceEnabled(source)) continue
+    }
+    Object.assign(
+      process.env,
+      filterSettingsEnv(getSettingsForSource(source)?.env, source),
+    )
+  }
 
   // Clear caches so agents are rebuilt with the new env vars
   clearCACertsCache()

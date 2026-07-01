@@ -1,7 +1,13 @@
 import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from '../../services/analytics/index.js'
+import {
+  getDirectApiKeyEnvVarName,
+  isOpenAIDirectApiKeyEnvVar,
+} from '../authEnv.js'
 import { isEnvTruthy } from '../envUtils.js'
 
 export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 'foundry'
+export const OPENAI_COMPAT_DEFAULT_BASE_URL = 'https://api.openai.com'
+export const OPENAI_COMPAT_DEFAULT_MODEL = 'gpt-5.1-codex'
 
 const FIRST_PARTY_NOUMENA_HOSTS = [
   'api.noumena.com',
@@ -9,17 +15,36 @@ const FIRST_PARTY_NOUMENA_HOSTS = [
 ]
 const FIRST_PARTY_ANTHROPIC_HOSTS = ['api.anthropic.com']
 
-function normalizeBaseUrl(value: string | undefined): string | undefined {
-  const baseUrl = value?.trim()
-  return baseUrl && baseUrl.length > 0 ? baseUrl : undefined
+function normalizeEnvValue(value: string | undefined): string | undefined {
+  const normalized = value?.trim()
+  return normalized && normalized.length > 0 ? normalized : undefined
 }
 
 export function getNoumenaBaseUrl(): string | undefined {
-  return normalizeBaseUrl(process.env.NOUMENA_BASE_URL)
+  return normalizeEnvValue(process.env.NOUMENA_BASE_URL)
 }
 
 export function getAnthropicBaseUrl(): string | undefined {
-  return normalizeBaseUrl(process.env.ANTHROPIC_BASE_URL)
+  return normalizeEnvValue(process.env.ANTHROPIC_BASE_URL)
+}
+
+export function getOpenAIBaseUrl(): string | undefined {
+  return normalizeEnvValue(process.env.OPENAI_BASE_URL)
+}
+
+export function isOpenAICompatByokActive(): boolean {
+  return isOpenAIDirectApiKeyEnvVar(getDirectApiKeyEnvVarName())
+}
+
+export function getOpenAICompatBaseUrl(): string | undefined {
+  if (!isOpenAICompatByokActive()) {
+    return undefined
+  }
+  return getOpenAIBaseUrl() ?? OPENAI_COMPAT_DEFAULT_BASE_URL
+}
+
+export function getOpenAICompatDefaultModel(): string {
+  return normalizeEnvValue(process.env.OPENAI_MODEL) ?? OPENAI_COMPAT_DEFAULT_MODEL
 }
 
 export function getFirstPartyBaseUrlOverride(): string | undefined {

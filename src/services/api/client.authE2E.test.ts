@@ -226,7 +226,7 @@ describe('getFirstPartyRequestHeaders terminal re-auth end-to-end', () => {
     })
   })
 
-  it('fails closed instead of falling back to a stale bearer or API key when managed re-auth cannot recover', async () => {
+  it('uses direct API-key auth when managed re-auth cannot recover but a direct key is configured', async () => {
     process.env.NOUMENA_API_KEY = 'fallback-api-key'
     saveOAuthTokensIfNeeded({
       accessToken: 'expired-access-token',
@@ -247,8 +247,8 @@ describe('getFirstPartyRequestHeaders terminal re-auth end-to-end', () => {
       },
     })
 
-    await expect(getFirstPartyRequestHeaders()).rejects.toThrow(
-      'Managed OAuth authentication expired and could not be refreshed.',
-    )
+    await expect(getFirstPartyRequestHeaders()).resolves.toMatchObject({
+      'x-api-key': 'fallback-api-key',
+    })
   })
 })

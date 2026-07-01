@@ -33,12 +33,23 @@ The canonical way to use Noumena-managed accounts is OAuth:
 
 Complete the browser OAuth flow. You can also start the app and run `/login` from inside the REPL.
 
-Noumena API keys and BYOK are supported alternatives for automation and direct-provider workflows:
+Noumena API keys and BYOK are supported alternatives for automation and direct-provider workflows. Noumena OAuth login is optional and can coexist with any of these inference providers.
 
 ```bash
+# Noumena-managed API key
 NOUMENA_API_KEY=... .tmp/packages/ncode-0.1.0-linux-x64/ncode
+
+# Native Anthropic BYOK
 ANTHROPIC_API_KEY=... .tmp/packages/ncode-0.1.0-linux-x64/ncode
+
+# OpenAI-compatible BYOK, including OpenRouter or self-hosted gateways
+OPENAI_API_KEY=... \
+OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
+OPENAI_MODEL=inclusionai/ling-2.6-flash \
+.tmp/packages/ncode-0.1.0-linux-x64/ncode
 ```
+
+Direct key precedence is `NOUMENA_API_KEY`, then `ANTHROPIC_API_KEY`, then `OPENAI_API_KEY`. `OPENAI_BASE_URL` and `OPENAI_MODEL` are only used when `OPENAI_API_KEY` is the active direct key. Project-checked-in settings cannot silently set OpenAI BYOK routing variables; keep provider keys in your shell, user settings, or a secret manager.
 
 The launcher also reads `~/.config/noumena/ncode/api_key` by default. Service endpoints can be overridden for non-default infrastructure:
 
