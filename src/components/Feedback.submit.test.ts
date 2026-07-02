@@ -128,7 +128,7 @@ describe('submitFeedback', () => {
       success: true,
       feedbackId: 'fb-1',
     })
-    expect(capturedRequest?.url).toBe('https://api.noumena.test/api/claude_cli_feedback')
+    expect(capturedRequest?.url).toBe('https://api.noumena.test/api/ncode_feedback')
     expect(capturedRequest?.body).toEqual({ content: JSON.stringify(feedbackData) })
     expect(capturedRequest?.options?.headers).toMatchObject({
       Authorization: 'Bearer managed-token',
@@ -137,7 +137,7 @@ describe('submitFeedback', () => {
     expect(runtime.resolveSession).toHaveBeenCalledWith({ allowRefresh: true })
   })
 
-  test('falls back to GitHub issue draft flow when collector route is missing', async () => {
+  test('fails closed when the collector route is missing', async () => {
     axios.post = (async () => {
       throw {
         isAxiosError: true,
@@ -146,8 +146,7 @@ describe('submitFeedback', () => {
     }) as typeof axios.post
 
     expect(await submitFeedback(makeFeedbackData())).toEqual({
-      success: true,
-      draftOnly: true,
+      success: false,
     })
   })
 })
