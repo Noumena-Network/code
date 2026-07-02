@@ -6,6 +6,7 @@ import {
   getDefaultMainLoopModelSetting,
   getDefaultOpusModel,
   isOpus1mMergeEnabled,
+  parseUserSpecifiedModel,
 } from './model.js'
 import { GLM_5_2_MODEL } from './ncodeModels.js'
 
@@ -72,6 +73,16 @@ function restoreEnv(): void {
     delete process.env.NOUMENA_DEFAULT_HAIKU_MODEL
   } else {
     process.env.NOUMENA_DEFAULT_HAIKU_MODEL = originalDefaultHaiku
+  }
+  if (originalOpenAIApiKey === undefined) {
+    delete process.env.OPENAI_API_KEY
+  } else {
+    process.env.OPENAI_API_KEY = originalOpenAIApiKey
+  }
+  if (originalOpenAIModel === undefined) {
+    delete process.env.OPENAI_MODEL
+  } else {
+    process.env.OPENAI_MODEL = originalOpenAIModel
   }
 }
 
@@ -267,6 +278,42 @@ describe('model auth session gating', () => {
       expect(getDefaultOpusModel()).toBe('custom-openai-model')
       expect(getDefaultFlashModel()).toBe('custom-openai-model')
       expect(getDefaultMainLoopModelSetting()).toBe('custom-openai-model')
+    })
+  })
+
+  it('forwards BYOK OpenAI-compat model ids verbatim, even when they collide with a managed alias', () => {
+    process.env.CLAUDE_CODE_ENTRYPOINT = 'cli'
+    process.env.USER_TYPE = 'test'
+    delete process.env.NCODE_BUILD_MODE
+    delete process.env.CLAUDE_CODE_USE_BEDROCK
+    delete process.env.CLAUDE_CODE_USE_VERTEX
+    delete process.env.CLAUDE_CODE_USE_FOUNDRY
+    process.env.OPENAI_API_KEY = 'openai-key'
+
+    const session = makeSession({
+      principalKind: 'api_key_user',
+      principalSource: 'direct_api_key_env',
+      sessionState: 'usable',
+      headersKind: 'none',
+      providerAuthKind: 'byok_static_env',
+      providerPlan: {
+        mode: 'byok_static_env',
+        source: 'direct_api_key_env',
+        staticKeyEnvVarName: 'OPENAI_API_KEY',
+      },
+      hasUsableApiKey: true,
+      apiKey: 'openai-key',
+      rawApiKeySource: 'OPENAI_API_KEY',
+    })
+
+    withMockCurrentSession(session, () => {
+      // `glm-5.2` / `k2.7` are reserved NCode managed aliases, but here they name
+      // a model on the user's own OpenAI-compatible server. They must reach the
+      // wire verbatim rather than being rewritten to an internal deployment path
+      // (which the user's server would 404).
+      expect(parseUserSpecifiedModel('glm-5.2')).toBe('glm-5.2')
+      expect(parseUserSpecifiedModel('k2.7')).toBe('k2.7')
+      expect(parseUserSpecifiedModel('my-own-model')).toBe('my-own-model')
     })
   })
 
