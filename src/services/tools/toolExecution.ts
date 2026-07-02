@@ -130,6 +130,10 @@ import {
   runPostToolUseHooks,
   runPreToolUseHooks,
 } from './toolHooks.js'
+import {
+  buildSchemaConfusionHint,
+  inferSchemaLeakSource,
+} from './schemaConfusionHint.js'
 
 /** Minimum total hook duration (ms) to show inline timing summary */
 export const HOOK_TIMING_DISPLAY_THRESHOLD_MS = 500
@@ -628,6 +632,47 @@ async function checkPermissionsAndCallTool(
         isMcp: tool.isMcp ?? false,
       })
       errorContent += schemaHint
+    }
+
+    const confusionHint = buildSchemaConfusionHint(
+      tool.name,
+      input,
+      toolUseContext.options.tools.map(t => t.name),
+    )
+    if (confusionHint) {
+      logEvent('ncode_schema_confusion_hint', {
+        toolName: sanitizeToolNameForAnalytics(tool.name),
+        isMcp: tool.isMcp ?? false,
+      })
+      errorContent += confusionHint
+    }
+
+    const leak = inferSchemaLeakSource(
+      tool.name,
+      input,
+      toolUseContext.options.tools.map(t => t.name),
+    )
+    const missingRequired = parsedInput.error.issues
+      .filter(
+        issue =>
+          issue.code === 'invalid_type' && issue.received === 'missing',
+      )
+      .map(issue => issue.path.join('.'))
+      .filter(name => name.length > 0)
+    if (leak || missingRequired.length > 0) {
+      logEvent('ncode_schema_leak_rejected', {
+        model:
+          (toolUseContext.options.mainLoopModel ?? '') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        target_tool:
+          sanitizeToolNameForAnalytics(tool.name) as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        source_tool_inferred: (leak?.source_tool_inferred ?? null) as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        stray_params: (leak?.stray_params ?? []) as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        missing_required_params: missingRequired as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        hint_emitted: confusionHint !== null,
+        query_chain_id:
+          (toolUseContext.queryTracking?.chainId ?? '') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        query_depth: toolUseContext.queryTracking?.depth ?? 0,
+      })
     }
 
     logForDebugging(

@@ -920,6 +920,101 @@ describe('mapOpenAIChatCompletionToAnthropicMessage', () => {
 
     expect(message.content).toEqual([{ type: 'text', text: 'final answer' }])
   })
+
+  it('strips malformed tool_use blocks and matching tool_results before sending history', () => {
+    const request = buildOpenAICompatChatRequest({
+      model: GLM_5_2_MODEL,
+      max_tokens: 64,
+      messages: [
+        { role: 'user', content: 'do something' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'blank_name', name: '', input: {} },
+            { type: 'tool_use', id: 'missing_name', input: {} },
+            { type: 'tool_use', id: 'non_string_name', name: 123, input: {} },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'blank_name',
+              content: 'Tool not found',
+            },
+            {
+              type: 'tool_result',
+              tool_use_id: 'missing_name',
+              content: 'Tool not found',
+            },
+            {
+              type: 'tool_result',
+              tool_use_id: 'non_string_name',
+              content: 'Tool not found',
+            },
+            { type: 'text', text: 'continue' },
+          ],
+        },
+        { role: 'user', content: 'next question' },
+      ],
+    } as never)
+
+    expect(request.messages).toEqual([
+      { role: 'user', content: 'do something' },
+      { role: 'user', content: 'continue' },
+      { role: 'user', content: 'next question' },
+    ])
+  })
+
+  it('preserves valid tool_use blocks alongside malformed blocks', () => {
+    const request = buildOpenAICompatChatRequest({
+      model: GLM_5_2_MODEL,
+      max_tokens: 64,
+      messages: [
+        { role: 'user', content: 'hello' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'bad', name: '   ', input: {} },
+            { type: 'tool_use', id: 'good', name: 'Bash', input: { cmd: 'ls' } },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'tool_result', tool_use_id: 'bad', content: 'Tool not found' },
+            { type: 'tool_result', tool_use_id: 'good', content: 'file.ts' },
+          ],
+        },
+      ],
+      tools: [
+        {
+          name: 'Bash',
+          description: 'Run shell commands',
+          input_schema: {
+            type: 'object',
+            properties: { cmd: { type: 'string' } },
+          },
+        },
+      ],
+    } as never)
+
+    const assistantMsg = request.messages.find(m => m.role === 'assistant')
+    expect(assistantMsg).toBeDefined()
+    expect(assistantMsg?.tool_calls).toEqual([
+      {
+        id: 'good',
+        type: 'function',
+        function: { name: 'Bash', arguments: '{"cmd":"ls"}' },
+      },
+    ])
+
+    const toolMsg = request.messages.find(m => m.role === 'tool')
+    expect(toolMsg).toBeDefined()
+    expect(toolMsg?.tool_call_id).toBe('good')
+    expect(toolMsg?.content).toBe('file.ts')
+  })
 })
 
 describe('OpenAICompatInferenceClient', () => {

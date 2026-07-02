@@ -681,6 +681,100 @@ function convertMessages(
   return converted
 }
 
+function isMalformedToolUseBlock(block: unknown): block is {
+  id?: unknown
+  type: 'tool_use'
+} {
+  if (!block || typeof block !== 'object') return false
+  if (!('type' in block) || (block as { type?: unknown }).type !== 'tool_use') {
+    return false
+  }
+  return !('name' in block) || typeof (block as { name?: unknown }).name !== 'string' || (block as { name: string }).name.trim() === ''
+}
+
+/**
+ * Strips malformed assistant tool_use blocks before forwarding history to an
+ * OpenAI-compatible endpoint, and removes matching tool_result blocks. This
+ * prevents malformed model output (blank/missing/non-string tool names) from
+ * poisoning all later requests with history that OpenAI-compatible servers
+ * reject before the model can recover.
+ */
+function sanitizeMessagesForMalformedToolCalls(messages: unknown): unknown {
+  if (!Array.isArray(messages)) return messages
+
+  const orphanedIds = new Set<string>()
+  const result: unknown[] = []
+
+  for (const message of messages) {
+    if (
+      !message ||
+      typeof message !== 'object' ||
+      !('role' in message) ||
+      !('content' in message)
+    ) {
+      result.push(message)
+      continue
+    }
+
+    const msg = message as {
+      role: unknown
+      content: unknown
+      [key: string]: unknown
+    }
+
+    if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+      const filteredContent = msg.content.filter((block: unknown) => {
+        if (isMalformedToolUseBlock(block)) {
+          if ('id' in block && typeof block.id === 'string') {
+            orphanedIds.add(block.id)
+          }
+          return false
+        }
+        return true
+      })
+
+      if (filteredContent.length === 0) {
+        continue
+      }
+
+      result.push({ ...msg, content: filteredContent })
+      continue
+    }
+
+    if (
+      msg.role === 'user' &&
+      Array.isArray(msg.content) &&
+      orphanedIds.size > 0
+    ) {
+      const filteredContent = msg.content.filter((block: unknown) => {
+        if (
+          block &&
+          typeof block === 'object' &&
+          'type' in block &&
+          (block as { type: unknown }).type === 'tool_result' &&
+          'tool_use_id' in block &&
+          typeof (block as { tool_use_id: unknown }).tool_use_id === 'string' &&
+          orphanedIds.has((block as { tool_use_id: string }).tool_use_id)
+        ) {
+          return false
+        }
+        return true
+      })
+
+      if (filteredContent.length === 0) {
+        continue
+      }
+
+      result.push({ ...msg, content: filteredContent })
+      continue
+    }
+
+    result.push(message)
+  }
+
+  return result
+}
+
 function convertTools(tools: unknown): Array<Record<string, unknown>> | undefined {
   if (!Array.isArray(tools) || tools.length === 0) {
     return undefined
@@ -845,7 +939,10 @@ export function buildOpenAICompatChatRequest(
       : undefined
   const convertedTools = convertTools(params.tools)
   const convertedToolChoice = convertToolChoice(params.tool_choice)
-  const convertedMessages = convertMessages(params.system, params.messages)
+  const convertedMessages = convertMessages(
+    params.system,
+    sanitizeMessagesForMalformedToolCalls(params.messages),
+  )
 
   const request: OpenAIChatCompletionRequest = {
     model: normalizeOpenAICompatModelForAPI(params.model, {
