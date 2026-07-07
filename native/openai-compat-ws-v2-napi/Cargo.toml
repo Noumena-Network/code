@@ -19,7 +19,7 @@ url = "2"
 uuid = { version = "1", features = ["v4"] }
 
 [build-dependencies]
-napi-build = "2"
+napi-build = "=2.2.3"
 
 [package.metadata.napi]
 name = "openai-compat-ws-v2-napi"
